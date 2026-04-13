@@ -1,6 +1,10 @@
 package game
 
-import "testing"
+import (
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // 6.1 applyDelta in ModeWorld increments worldPos.
 func TestApplyDelta_WorldMovement(t *testing.T) {
@@ -51,5 +55,282 @@ func TestApplyDelta_BlockedByObject(t *testing.T) {
 	m = applyDelta(1, 0, m) // move right — clear
 	if m.playerPos.X != 6 || m.playerPos.Y != 5 {
 		t.Fatalf("expected playerPos {6,5} after unblocked move, got {%d,%d}", m.playerPos.X, m.playerPos.Y)
+	}
+}
+
+// 6.4 applyDelta in ModeLocal returns early when localMap is nil.
+func TestApplyDelta_NilLocalMap(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = nil
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	result := applyDelta(1, 0, m)
+	if result.playerPos != m.playerPos {
+		t.Fatalf("expected playerPos unchanged with nil localMap, got %+v", result.playerPos)
+	}
+}
+
+// 6.5 applyDelta in ModeLocal is clamped at right and bottom boundaries.
+func TestApplyDelta_RightBottomBoundary(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: LocalMapW - 1, Y: LocalMapH - 1}
+
+	m = applyDelta(1, 0, m) // move right — out of bounds
+	if m.playerPos.X != LocalMapW-1 {
+		t.Fatalf("expected playerPos.X clamped at %d, got %d", LocalMapW-1, m.playerPos.X)
+	}
+	m = applyDelta(0, 1, m) // move down — out of bounds
+	if m.playerPos.Y != LocalMapH-1 {
+		t.Fatalf("expected playerPos.Y clamped at %d, got %d", LocalMapH-1, m.playerPos.Y)
+	}
+}
+
+// --- nextWorldZoom / prevWorldZoom ---
+
+func TestNextWorldZoom_AllCases(t *testing.T) {
+	cases := []struct{ in, want int }{
+		{1, 2},
+		{2, 4},
+		{4, 8},
+		{8, 8},   // default → 8
+		{99, 8},  // unknown → 8
+	}
+	for _, c := range cases {
+		if got := nextWorldZoom(c.in); got != c.want {
+			t.Errorf("nextWorldZoom(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+func TestPrevWorldZoom_AllCases(t *testing.T) {
+	cases := []struct{ in, want int }{
+		{8, 4},
+		{4, 2},
+		{2, 1},
+		{1, 1},   // default → 1
+		{99, 1},  // unknown → 1
+	}
+	for _, c := range cases {
+		if got := prevWorldZoom(c.in); got != c.want {
+			t.Errorf("prevWorldZoom(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+func TestNextTimeScale_DefaultCase(t *testing.T) {
+	// Any value other than 1, 2, 5 should return 10
+	if got := nextTimeScale(99); got != 10 {
+		t.Errorf("nextTimeScale(99) = %d, want 10", got)
+	}
+}
+
+func TestPrevTimeScale_DefaultCase(t *testing.T) {
+	// Any value other than 2, 5, 10 should return 1
+	if got := prevTimeScale(99); got != 1 {
+		t.Errorf("prevTimeScale(99) = %d, want 1", got)
+	}
+}
+
+// --- findSpawnPoint ---
+
+func TestFindSpawnPoint_UnblockedCentre(t *testing.T) {
+	lm := &LocalMap{} // no objects → centre is unblocked
+	pos := findSpawnPoint(lm)
+	cx, cy := LocalMapW/2, LocalMapH/2
+	if pos.X != cx || pos.Y != cy {
+		t.Errorf("findSpawnPoint with empty map: got %+v, want {%d,%d}", pos, cx, cy)
+	}
+}
+
+func TestFindSpawnPoint_BlockedCentre(t *testing.T) {
+	lm := &LocalMap{}
+	cx, cy := LocalMapW/2, LocalMapH/2
+	lm.Objects[cx][cy] = &Object{Char: '#', Color: "white", Blocking: true}
+	pos := findSpawnPoint(lm)
+	// Should avoid the blocked centre
+	if pos.X == cx && pos.Y == cy {
+		t.Errorf("findSpawnPoint should skip blocked centre, got {%d,%d}", pos.X, pos.Y)
+	}
+}
+
+// --- handleKey ---
+
+func TestHandleKey_ToggleSidebar(t *testing.T) {
+	m := NewModel()
+	m.showSidebar = false
+	result, cmd := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}, m)
+	if !result.showSidebar {
+		t.Fatal("? key should set showSidebar to true")
+	}
+	if cmd != nil {
+		t.Fatal("? key should return nil cmd")
+	}
+}
+
+func TestHandleKey_WorldZoom_Plus(t *testing.T) {
+	// + zooms in → calls prevWorldZoom
+	m := NewModel()
+	m.mode = ModeWorld
+	m.worldZoom = 4
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")}, m)
+	if result.worldZoom != 2 {
+		t.Errorf("+ in ModeWorld: worldZoom = %d, want 2", result.worldZoom)
+	}
+}
+
+func TestHandleKey_WorldZoom_Equals(t *testing.T) {
+	// = zooms in → calls prevWorldZoom
+	m := NewModel()
+	m.mode = ModeWorld
+	m.worldZoom = 4
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("=")}, m)
+	if result.worldZoom != 2 {
+		t.Errorf("= in ModeWorld: worldZoom = %d, want 2", result.worldZoom)
+	}
+}
+
+func TestHandleKey_WorldZoom_Minus(t *testing.T) {
+	// - zooms out → calls nextWorldZoom
+	m := NewModel()
+	m.mode = ModeWorld
+	m.worldZoom = 2
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("-")}, m)
+	if result.worldZoom != 4 {
+		t.Errorf("- in ModeWorld: worldZoom = %d, want 4", result.worldZoom)
+	}
+}
+
+func TestHandleKey_WorldZoom_NotInLocalMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.worldZoom = 1
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")}, m)
+	if result.worldZoom != 1 {
+		t.Errorf("+ in ModeLocal should not change worldZoom: got %d, want 1", result.worldZoom)
+	}
+}
+
+func TestHandleKey_WorldZoom_MinusNotInLocalMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.worldZoom = 1
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("-")}, m)
+	if result.worldZoom != 1 {
+		t.Errorf("- in ModeLocal should not change worldZoom: got %d, want 1", result.worldZoom)
+	}
+}
+
+func TestHandleKey_Movement_ArrowKeys(t *testing.T) {
+	keys := []struct {
+		msg        tea.KeyMsg
+		ddx, ddy   int
+	}{
+		{tea.KeyMsg{Type: tea.KeyUp}, 0, -1},
+		{tea.KeyMsg{Type: tea.KeyDown}, 0, 1},
+		{tea.KeyMsg{Type: tea.KeyLeft}, -1, 0},
+		{tea.KeyMsg{Type: tea.KeyRight}, 1, 0},
+	}
+	for _, k := range keys {
+		m := NewModel()
+		m.mode = ModeWorld
+		m.worldPos = WorldCoord{X: 10, Y: 10}
+		result, _ := handleKey(k.msg, m)
+		wantX := 10 + k.ddx
+		wantY := 10 + k.ddy
+		if result.worldPos.X != wantX || result.worldPos.Y != wantY {
+			t.Errorf("arrow key: got worldPos {%d,%d}, want {%d,%d}",
+				result.worldPos.X, result.worldPos.Y, wantX, wantY)
+		}
+	}
+}
+
+func TestHandleKey_Movement_WASD(t *testing.T) {
+	keys := []struct {
+		ch       string
+		ddx, ddy int
+	}{
+		{"w", 0, -1},
+		{"s", 0, 1},
+		{"a", -1, 0},
+		{"d", 1, 0},
+	}
+	for _, k := range keys {
+		m := NewModel()
+		m.mode = ModeWorld
+		m.worldPos = WorldCoord{X: 10, Y: 10}
+		result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k.ch)}, m)
+		wantX := 10 + k.ddx
+		wantY := 10 + k.ddy
+		if result.worldPos.X != wantX || result.worldPos.Y != wantY {
+			t.Errorf("key %q: got worldPos {%d,%d}, want {%d,%d}",
+				k.ch, result.worldPos.X, result.worldPos.Y, wantX, wantY)
+		}
+	}
+}
+
+func TestHandleKey_DescendToLocal_Enter(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	result, cmd := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if result.mode != ModeLocal {
+		t.Fatalf("enter in ModeWorld: mode = %d, want ModeLocal", result.mode)
+	}
+	if result.localMap == nil {
+		t.Fatal("enter in ModeWorld: localMap should not be nil")
+	}
+	if cmd != nil {
+		t.Fatal("enter key should return nil cmd")
+	}
+}
+
+func TestHandleKey_DescendToLocal_GT(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(">")}, m)
+	if result.mode != ModeLocal {
+		t.Fatalf("> in ModeWorld: mode = %d, want ModeLocal", result.mode)
+	}
+}
+
+func TestHandleKey_DescendNoopInLocalMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if result.mode != ModeLocal {
+		t.Fatalf("enter in ModeLocal should stay ModeLocal, got %d", result.mode)
+	}
+}
+
+func TestHandleKey_AscendToWorld_Esc(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	if result.mode != ModeWorld {
+		t.Fatalf("esc in ModeLocal: mode = %d, want ModeWorld", result.mode)
+	}
+}
+
+func TestHandleKey_AscendToWorld_LT(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("<")}, m)
+	if result.mode != ModeWorld {
+		t.Fatalf("< in ModeLocal: mode = %d, want ModeWorld", result.mode)
+	}
+}
+
+func TestHandleKey_AscendNoopInWorldMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	if result.mode != ModeWorld {
+		t.Fatalf("esc in ModeWorld should stay ModeWorld, got %d", result.mode)
 	}
 }

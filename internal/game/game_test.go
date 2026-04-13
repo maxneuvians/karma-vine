@@ -105,3 +105,57 @@ func TestCoordStructs(t *testing.T) {
 		t.Fatalf("ChunkCoord fields wrong: %+v", cc)
 	}
 }
+
+// --- View with non-zero viewport ---
+
+func TestModel_View_WithViewport(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	out := m.View()
+	if out == "" || out == "World Explorer — loading..." {
+		t.Fatalf("View with non-zero viewport returned unexpected: %q", out)
+	}
+}
+
+// --- Update TickMsg ---
+
+func TestModel_Update_TickMsg_WorldMode(t *testing.T) {
+	m := NewModel()
+	m.timeOfDay = 0.5
+	m.timeScale = 2
+	m.mode = ModeWorld
+	next, cmd := m.Update(TickMsg{})
+	nm := next.(Model)
+	want := 0.5 + 2.0/600.0
+	if nm.timeOfDay < want-0.0001 || nm.timeOfDay > want+0.0001 {
+		t.Errorf("TickMsg timeOfDay = %v, want ~%v", nm.timeOfDay, want)
+	}
+	if cmd == nil {
+		t.Fatal("TickMsg Update should return a non-nil cmd")
+	}
+}
+
+func TestModel_Update_TickMsg_LocalMode_AnimalsMove(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = GenerateLocalMap(0, 0, 42, Forest)
+	m.localMap.Animals = []*Animal{{X: 10, Y: 10, Char: 'd', Color: "#888", Flee: false}}
+	next, _ := m.Update(TickMsg{})
+	nm := next.(Model)
+	if nm.localMap == nil {
+		t.Fatal("TickMsg local mode: localMap should not be nil after tick")
+	}
+}
+
+func TestModel_Update_TickMsg_TimeWraps(t *testing.T) {
+	m := NewModel()
+	m.timeOfDay = 0.9999
+	m.timeScale = 10
+	next, _ := m.Update(TickMsg{})
+	nm := next.(Model)
+	if nm.timeOfDay < 0 || nm.timeOfDay >= 1.0 {
+		t.Errorf("TickMsg time wrap: timeOfDay = %v, want in [0,1)", nm.timeOfDay)
+	}
+}
+
