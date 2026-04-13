@@ -25,10 +25,11 @@ func TestNewModel_DefaultMode(t *testing.T) {
 	}
 }
 
-func TestNewModel_ZeroCoords(t *testing.T) {
+func TestNewModel_StartsOnLand(t *testing.T) {
 	m := NewModel()
-	if m.worldPos != (WorldCoord{}) {
-		t.Fatalf("NewModel: expected zero worldPos, got %+v", m.worldPos)
+	tile := TileAt(m.worldPos.X, m.worldPos.Y, &m)
+	if !isLandBiome(tile.Biome) {
+		t.Fatalf("NewModel: expected land spawn, got biome %d at %+v", tile.Biome, m.worldPos)
 	}
 	if m.playerPos != (LocalCoord{}) {
 		t.Fatalf("NewModel: expected zero playerPos, got %+v", m.playerPos)

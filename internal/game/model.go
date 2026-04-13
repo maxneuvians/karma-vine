@@ -2,6 +2,7 @@ package game
 
 import (
 	"math"
+	"math/rand"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,12 +35,15 @@ type Model struct {
 
 // NewModel returns an initialised Model with non-nil maps.
 func NewModel() Model {
-	return Model{
+	m := Model{
+		globalSeed: rand.New(rand.NewSource(time.Now().UnixNano())).Int(),
 		chunks:     make(map[ChunkCoord]*Chunk),
 		localCache: make(map[WorldCoord]*LocalMap),
 		timeOfDay:  0.25, // start at 6 AM
 		timeScale:  1,
 	}
+	m.worldPos = findWorldSpawn(&m)
+	return m
 }
 
 func tickCmd() tea.Cmd {
