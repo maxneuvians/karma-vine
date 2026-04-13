@@ -27,6 +27,7 @@ type Model struct {
 	viewportH   int
 	mode        Mode
 	showSidebar bool
+	worldZoom   int // 1=normal, 2=2×, 4=4×, 8=8×
 
 	// Time
 	timeOfDay float64 // [0, 1): 0=midnight, 0.25=6AM, 0.5=noon, 0.75=6PM
@@ -41,6 +42,7 @@ func NewModel() Model {
 		localCache: make(map[WorldCoord]*LocalMap),
 		timeOfDay:  0.25, // start at 6 AM
 		timeScale:  1,
+		worldZoom:  1,
 	}
 	m.worldPos = findWorldSpawn(&m)
 	return m

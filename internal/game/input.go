@@ -19,6 +19,16 @@ func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
 	case "[":
 		m.timeScale = prevTimeScale(m.timeScale)
 
+	// World zoom (world map only)
+	case "+", "=":
+		if m.mode == ModeWorld {
+			m.worldZoom = prevWorldZoom(m.worldZoom)
+		}
+	case "-":
+		if m.mode == ModeWorld {
+			m.worldZoom = nextWorldZoom(m.worldZoom)
+		}
+
 	// Movement
 	case "up", "w":
 		m = applyDelta(0, -1, m)
@@ -74,6 +84,35 @@ func prevTimeScale(s int) int {
 		return 1
 	}
 }
+
+// nextWorldZoom returns the next higher zoom level (1→2→4→8, clamped).
+func nextWorldZoom(z int) int {
+	switch z {
+	case 1:
+		return 2
+	case 2:
+		return 4
+	case 4:
+		return 8
+	default:
+		return 8
+	}
+}
+
+// prevWorldZoom returns the next lower zoom level (8→4→2→1, clamped).
+func prevWorldZoom(z int) int {
+	switch z {
+	case 8:
+		return 4
+	case 4:
+		return 2
+	case 2:
+		return 1
+	default:
+		return 1
+	}
+}
+
 // In ModeWorld, world position is unbounded.
 // In ModeLocal, movement is clamped to [0,41]×[0,17] and blocked by Object.Blocking.
 func applyDelta(dx, dy int, m Model) Model {

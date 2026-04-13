@@ -74,7 +74,12 @@ func biomeName(b Biome) string {
 // ── World map renderer ────────────────────────────────────────────────────────
 
 // renderWorldMap renders mapW × mapH cells centred on worldPos.
+// m.worldZoom controls how many world tiles each screen cell represents (1/2/4/8).
 func renderWorldMap(m Model, mapW, mapH int) string {
+	z := m.worldZoom
+	if z < 1 {
+		z = 1
+	}
 	cx := mapW / 2
 	cy := mapH / 2
 	rows := make([]string, 0, mapH)
@@ -86,8 +91,8 @@ func renderWorldMap(m Model, mapW, mapH int) string {
 				row.WriteString(playerStyle.Render("@"))
 				continue
 			}
-			wx := m.worldPos.X + (sx - cx)
-			wy := m.worldPos.Y + (sy - cy)
+			wx := m.worldPos.X + (sx-cx)*z
+			wy := m.worldPos.Y + (sy-cy)*z
 			tile := TileAt(wx, wy, &m)
 			color := applyColor(tile.Color, dimFactor(m.timeOfDay))
 			cell := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(string(tile.Char))
@@ -375,7 +380,7 @@ func renderKeyBar(m Model) string {
 	if m.mode == ModeLocal {
 		hints = fmt.Sprintf(" ↑↓←→/wasd move  esc/< ascend  [/] speed (%s)  ? sidebar  q quit", speed)
 	} else {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  [/] speed (%s)  ? sidebar  q quit", speed)
+		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  [/] speed (%s)  ? sidebar  q quit", m.worldZoom, speed)
 	}
 	return keyBarStyle.Render(hints)
 }
