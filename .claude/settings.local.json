@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(openspec list:*)",
+      "Bash(openspec status:*)",
+      "Bash(go build:*)",
+      "Bash(go test:*)"
+    ]
+  }
+}
