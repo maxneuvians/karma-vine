@@ -3,28 +3,34 @@ package game
 // TickMsg is dispatched by the BubbleTea tick loop every 500 ms.
 type TickMsg struct{}
 
-// Biome identifies one of the nine biome types.
+// Biome identifies one of the fourteen biome types.
 type Biome int
 
 const (
 	DeepOcean   Biome = iota // e < 0.28
 	ShallowWater              // e < 0.36
 	Beach                     // e < 0.40
-	Forest                    // e < 0.50, m > 0.55
-	Plains                    // e < 0.50, m <= 0.55
-	DenseForest               // e < 0.62, m > 0.45
+	Forest                    // temperate, e < 0.50, m > 0.55
+	Plains                    // temperate, e < 0.50
+	DenseForest               // temperate, e < 0.62, m > 0.45
 	Desert                    // e < 0.62, m < 0.35
 	Mountains                 // e < 0.78
 	Snow                      // e >= 0.78
+	Jungle                    // hot, e < 0.50, m > 0.55 or e < 0.62, m > 0.45
+	Savanna                   // hot, e < 0.50, m > 0.30
+	AridSteppe                // hot, e < 0.50, m <= 0.30
+	Tundra                    // cold, e < 0.50, m <= 0.50
+	Taiga                     // cold, e < 0.50, m > 0.50 or e < 0.62
 )
 
 // Tile is a single cell on the world map.
 type Tile struct {
-	Biome     Biome
-	Char      rune
-	Color     string
-	Elevation float64
-	Moisture  float64
+	Biome       Biome
+	Char        rune
+	Color       string
+	Elevation   float64
+	Moisture    float64
+	Temperature float64
 }
 
 // Ground is the floor tile in a local map cell.

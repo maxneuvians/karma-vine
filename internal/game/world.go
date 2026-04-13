@@ -44,6 +44,25 @@ func norm(v float64) float64 {
 	return (v + 1.0) * 0.5
 }
 
+// computeTemperature returns a temperature value in [0, 1] for a given world Y
+// coordinate. It applies a cosine latitudinal gradient with a half-period of
+// 400 tiles (so temperature cycles hot→cold every 800 tiles) blended with a
+// small noise perturbation of amplitude 0.12 to break horizontal symmetry.
+// Values near 1.0 are hot (equatorial, Y≈0); values near 0.0 are cold (polar).
+func computeTemperature(worldY int, noise opensimplex.Noise) float64 {
+	const halfPeriod = 400.0
+	base := (math.Cos(math.Pi*math.Abs(float64(worldY))/halfPeriod) + 1.0) * 0.5
+	perturbation := noise.Eval2(float64(worldY)*0.003, 0) * 0.12
+	t := base + perturbation
+	if t < 0 {
+		return 0
+	}
+	if t > 1 {
+		return 1
+	}
+	return t
+}
+
 // generateChunk produces a Chunk for the given chunk coordinates and seed.
 // It is a pure function of (cx, cy, globalSeed).
 //
@@ -62,6 +81,7 @@ func generateChunk(cx, cy, globalSeed int) *Chunk {
 	riverNoise := opensimplex.New(int64(globalSeed + 4))
 	warpXNoise := opensimplex.New(int64(globalSeed + 5))
 	warpYNoise := opensimplex.New(int64(globalSeed + 6))
+	temperatureNoise := opensimplex.New(int64(globalSeed + 7))
 
 	chunk := &Chunk{}
 	for lx := 0; lx < 32; lx++ {
@@ -99,13 +119,15 @@ func generateChunk(cx, cy, globalSeed int) *Chunk {
 				e = 0.33
 			}
 
-			biome, ch, color := classifyBiome(e, m)
+			temperature := computeTemperature(worldY, temperatureNoise)
+			biome, ch, color := classifyBiome(e, m, temperature)
 			chunk.Tiles[lx][ly] = Tile{
-				Biome:     biome,
-				Char:      ch,
-				Color:     color,
-				Elevation: e,
-				Moisture:  m,
+				Biome:       biome,
+				Char:        ch,
+				Color:       color,
+				Elevation:   e,
+				Moisture:    m,
+				Temperature: temperature,
 			}
 		}
 	}
@@ -113,9 +135,11 @@ func generateChunk(cx, cy, globalSeed int) *Chunk {
 }
 
 // classifyBiome returns the Biome, display rune, and hex color for the given
-// elevation and moisture values. Rules are evaluated in the order specified by
-// the brief.
-func classifyBiome(e, m float64) (Biome, rune, string) {
+// elevation, moisture, and temperature values. Water/coast cases apply across
+// all temperature bands; land biomes are split into hot (≥0.65), temperate
+// (0.35–0.65), and cold (<0.35) bands.
+func classifyBiome(e, m, temperature float64) (Biome, rune, string) {
+	// Water and coast — independent of temperature.
 	switch {
 	case e < 0.28:
 		return DeepOcean, '≋', "#1a6fa8"
@@ -123,18 +147,55 @@ func classifyBiome(e, m float64) (Biome, rune, string) {
 		return ShallowWater, '≈', "#2e9ecf"
 	case e < 0.40:
 		return Beach, '·', "#e8c96a"
-	case e < 0.50 && m > 0.55:
-		return Forest, '♣', "#2d7a1f"
-	case e < 0.50:
-		return Plains, '░', "#5aad3f"
-	case e < 0.62 && m > 0.45:
-		return DenseForest, '♠', "#3d6b3a"
-	case e < 0.62 && m < 0.35:
-		return Desert, '~', "#c8a46a"
-	case e < 0.78:
-		return Mountains, '▲', "#8fa89c"
-	default:
-		return Snow, '*', "#ccd9e0"
+	}
+
+	// Land biomes — split by temperature band.
+	switch {
+	case temperature >= 0.65: // hot band
+		switch {
+		case e < 0.50 && m > 0.55:
+			return Jungle, '♣', "#1a7a2e"
+		case e < 0.50 && m > 0.30:
+			return Savanna, 'ˬ', "#b5a04a"
+		case e < 0.50:
+			return AridSteppe, '·', "#c9a97a"
+		case e < 0.62 && m > 0.45:
+			return Jungle, '♣', "#1a7a2e"
+		case e < 0.62:
+			return Desert, '~', "#c8a46a"
+		case e < 0.78:
+			return Mountains, '▲', "#8fa89c"
+		default:
+			return Snow, '*', "#ccd9e0"
+		}
+	case temperature >= 0.35: // temperate band
+		switch {
+		case e < 0.50 && m > 0.55:
+			return Forest, '♣', "#2d7a1f"
+		case e < 0.50:
+			return Plains, '░', "#5aad3f"
+		case e < 0.62 && m > 0.45:
+			return DenseForest, '♠', "#3d6b3a"
+		case e < 0.62 && m < 0.35:
+			return Desert, '~', "#c8a46a"
+		case e < 0.78:
+			return Mountains, '▲', "#8fa89c"
+		default:
+			return Snow, '*', "#ccd9e0"
+		}
+	default: // cold band (temperature < 0.35)
+		switch {
+		case e < 0.50 && m > 0.50:
+			return Taiga, '♠', "#3a6b52"
+		case e < 0.50:
+			return Tundra, '∙', "#8ab08a"
+		case e < 0.62:
+			return Taiga, '♠', "#3a6b52"
+		case e < 0.78:
+			return Mountains, '▲', "#8fa89c"
+		default:
+			return Snow, '*', "#ccd9e0"
+		}
 	}
 }
 

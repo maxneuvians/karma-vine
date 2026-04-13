@@ -172,6 +172,95 @@ var biomeTable = map[Biome]biomeContent{
 		maxAnimals:      3,
 		fireThreshold:   0.88,
 	},
+	Jungle: {
+		ground: []groundVariant{
+			{'.', "#1a7a2e", true},
+			{',', "#15692a", true},
+			{'\'', "#228b38", true},
+			{';', "#2a9940", true},
+		},
+		objects: []objectEntry{
+			{'♣', "#1a7a2e", true},
+			{'♠', "#145520", true},
+		},
+		animals: []animalEntry{
+			{'b', "#2e9ecf", true},
+			{'s', "#228b38", false},
+		},
+		objectThreshold: 0.28,
+		maxAnimals:      4,
+	},
+	Savanna: {
+		ground: []groundVariant{
+			{'.', "#b5a04a", true},
+			{',', "#c4ae55", true},
+			{'\'', "#a8943f", true},
+			{';', "#cabb60", true},
+		},
+		objects: []objectEntry{
+			{'♣', "#8b6914", true},
+			{'○', "#8fa89c", false},
+		},
+		animals: []animalEntry{
+			{'d', "#c8a020", true},
+			{'b', "#c0a030", true},
+		},
+		objectThreshold: 0.60,
+		maxAnimals:      4,
+		fireThreshold:   0.87,
+	},
+	AridSteppe: {
+		ground: []groundVariant{
+			{'.', "#c9a97a", true},
+			{'·', "#bfa070", true},
+			{',', "#d4b484", true},
+		},
+		objects: []objectEntry{
+			{'○', "#8fa89c", false},
+			{'ψ', "#7a9060", true},
+		},
+		animals: []animalEntry{
+			{'l', "#c9a97a", false},
+			{'s', "#d4a060", false},
+		},
+		objectThreshold: 0.62,
+		maxAnimals:      2,
+	},
+	Tundra: {
+		ground: []groundVariant{
+			{'.', "#8ab08a", true},
+			{'·', "#7a9e7a", true},
+			{',', "#96bc96", true},
+			{'°', "#6a8e6a", true},
+		},
+		objects: []objectEntry{
+			{'○', "#8fa89c", false},
+			{'◆', "#a0b8a0", false},
+		},
+		animals: []animalEntry{
+			{'r', "#dddddd", true},
+			{'B', "#dddddd", false},
+		},
+		objectThreshold: 0.68,
+		maxAnimals:      2,
+	},
+	Taiga: {
+		ground: []groundVariant{
+			{'.', "#3a6b52", true},
+			{',', "#2e5a44", true},
+			{'\'', "#457a60", true},
+		},
+		objects: []objectEntry{
+			{'♠', "#3a6b52", true},
+			{'♣', "#2d5a40", true},
+		},
+		animals: []animalEntry{
+			{'w', "#888888", false},
+			{'d', "#8B4513", true},
+		},
+		objectThreshold: 0.35,
+		maxAnimals:      2,
+	},
 }
 
 // fallbackContent is used for biomes with no local content table (water tiles).

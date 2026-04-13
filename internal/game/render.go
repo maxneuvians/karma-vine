@@ -66,6 +66,16 @@ func biomeName(b Biome) string {
 		return "Mountains"
 	case Snow:
 		return "Snow"
+	case Jungle:
+		return "Jungle"
+	case Savanna:
+		return "Savanna"
+	case AridSteppe:
+		return "Arid Steppe"
+	case Tundra:
+		return "Tundra"
+	case Taiga:
+		return "Taiga"
 	default:
 		return "Unknown"
 	}
@@ -187,6 +197,17 @@ func renderLocalMap(m Model, mapW, mapH int) string {
 
 // ── HUD status bar ────────────────────────────────────────────────────────────
 
+// tempCelsius converts tile climate values to a display temperature in °C.
+//   - Base range: 0.0 → -20 °C (polar), 1.0 → 40 °C (equatorial).
+//   - Elevation lapse: ~6 °C cooler per 0.15 elevation above sea level (0.36).
+//   - Diurnal swing: ±5 °C cosine curve peaking at 14:00 (timeOfDay ≈ 0.583).
+func tempCelsius(temperature, elevation, timeOfDay float64) int {
+	base := temperature*60 - 20
+	elevAdj := -(elevation - 0.36) * 40
+	timeAdj := math.Cos(2*math.Pi*(timeOfDay-0.583)) * 5
+	return int(math.Round(base + elevAdj + timeAdj))
+}
+
 // formatTime converts a timeOfDay in [0,1) to a "HH:MM" 24-hour string.
 func formatTime(timeOfDay float64) string {
 	totalMinutes := int(timeOfDay * 24 * 60)
@@ -201,9 +222,11 @@ func renderHUD(m Model) string {
 	clock := formatTime(m.timeOfDay)
 	speed := fmt.Sprintf("%d×", m.timeScale)
 	var text string
+	celsius := tempCelsius(tile.Temperature, tile.Elevation, m.timeOfDay)
 	if m.mode == ModeLocal {
-		text = fmt.Sprintf(" %s  local (%d, %d)  world (%d, %d)  %s  %s",
+		text = fmt.Sprintf(" %s  %d°C  local (%d, %d)  world (%d, %d)  %s  %s",
 			biomeName(tile.Biome),
+			celsius,
 			m.playerPos.X, m.playerPos.Y,
 			m.worldPos.X, m.worldPos.Y,
 			clock, speed,
@@ -211,9 +234,10 @@ func renderHUD(m Model) string {
 	} else {
 		chunkX := m.worldPos.X / 32
 		chunkY := m.worldPos.Y / 32
-		text = fmt.Sprintf(" %s  elev: %.2f  (%d, %d)  chunk (%d, %d)  %s  %s",
+		text = fmt.Sprintf(" %s  elev: %.2f  %d°C  (%d, %d)  chunk (%d, %d)  %s  %s",
 			biomeName(tile.Biome),
 			tile.Elevation,
+			celsius,
 			m.worldPos.X, m.worldPos.Y,
 			chunkX, chunkY,
 			clock, speed,
