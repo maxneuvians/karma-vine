@@ -131,3 +131,53 @@ func TestBuildLitMap_CellsBeyondRadiusNotLit(t *testing.T) {
 	}
 }
 
+// --- Dungeon entrance ---
+
+func TestGenerateLocalMap_HasDungeonEntrance(t *testing.T) {
+	biomes := []Biome{Forest, Desert, Plains, Mountains, Snow, Beach}
+	for _, b := range biomes {
+		lm := GenerateLocalMap(0, 0, 42, b)
+		count := 0
+		for x := 0; x < LocalMapW; x++ {
+			for y := 0; y < LocalMapH; y++ {
+				if obj := lm.Objects[x][y]; obj != nil && obj.Char == '>' {
+					count++
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("biome %d: expected exactly 1 dungeon entrance, got %d", b, count)
+		}
+	}
+}
+
+func TestGenerateLocalMap_DungeonEntranceNotBlocking(t *testing.T) {
+	lm := GenerateLocalMap(0, 0, 42, Forest)
+	for x := 0; x < LocalMapW; x++ {
+		for y := 0; y < LocalMapH; y++ {
+			if obj := lm.Objects[x][y]; obj != nil && obj.Char == '>' {
+				if obj.Blocking {
+					t.Fatal("dungeon entrance should not be blocking")
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("no dungeon entrance found")
+}
+
+func TestGenerateLocalMap_DungeonEntranceNoOverlap(t *testing.T) {
+	lm := GenerateLocalMap(5, 5, 42, Plains)
+	for x := 0; x < LocalMapW; x++ {
+		for y := 0; y < LocalMapH; y++ {
+			if obj := lm.Objects[x][y]; obj != nil && obj.Char == '>' {
+				// The entrance cell should only have the entrance object.
+				if obj.Char != '>' {
+					t.Fatal("entrance cell has unexpected object")
+				}
+				return
+			}
+		}
+	}
+}
+

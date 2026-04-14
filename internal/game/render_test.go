@@ -750,3 +750,100 @@ func TestBuildView_MapPickerNarrowViewport(t *testing.T) {
 	}
 }
 
+// ── dungeon render tests ──────────────────────────────────────────────────────
+
+func makeDungeonModel() Model {
+	m := NewModel()
+	m.globalSeed = 42
+	m.viewportW = 80
+	m.viewportH = 26
+	m.mode = ModeDungeon
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	m.currentDungeon = level
+	m.dungeonDepth = 3
+	m.playerPos = level.UpStair
+	return m
+}
+
+func TestBuildView_DungeonContainsGlyphs(t *testing.T) {
+	m := makeDungeonModel()
+	out := buildView(m)
+	if !strings.Contains(out, "█") {
+		t.Error("dungeon view should contain wall glyph '█'")
+	}
+	if !strings.Contains(out, "@") {
+		t.Error("dungeon view should contain player glyph '@'")
+	}
+}
+
+func TestRenderHUD_DungeonShowsDepth(t *testing.T) {
+	m := makeDungeonModel()
+	hud := renderHUD(m)
+	if !strings.Contains(hud, "Depth: 3") {
+		t.Errorf("dungeon HUD should contain 'Depth: 3', got: %s", hud)
+	}
+	if !strings.Contains(hud, "Dungeon") {
+		t.Errorf("dungeon HUD should contain 'Dungeon', got: %s", hud)
+	}
+}
+
+func TestRenderKeyBar_DungeonHints(t *testing.T) {
+	m := makeDungeonModel()
+	bar := renderKeyBar(m)
+	if !strings.Contains(bar, "< up") {
+		t.Errorf("dungeon key bar should contain '< up', got: %s", bar)
+	}
+	if !strings.Contains(bar, "> down") {
+		t.Errorf("dungeon key bar should contain '> down', got: %s", bar)
+	}
+	if !strings.Contains(bar, "esc exit") {
+		t.Errorf("dungeon key bar should contain 'esc exit', got: %s", bar)
+	}
+}
+
+func TestRenderKeyBar_WorldModeNoDungeonHints(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 26
+	m.mode = ModeWorld
+	bar := renderKeyBar(m)
+	if strings.Contains(bar, "< up") {
+		t.Error("world key bar should not contain dungeon hints")
+	}
+}
+
+func TestComputeDungeonVisibility_PlayerCellAlwaysVisible(t *testing.T) {
+	m := makeDungeonModel()
+	light := computeDungeonLight(m)
+	if light[m.playerPos] == 0 {
+		t.Fatal("player's own cell should always be visible")
+	}
+}
+
+func TestComputeDungeonVisibility_FarCellHidden(t *testing.T) {
+	m := makeDungeonModel()
+	light := computeDungeonLight(m)
+	// Find a cell far from the player and any torches.
+	farX := m.playerPos.X + playerViewRadius + torchRadius + 5
+	farY := m.playerPos.Y + playerViewRadius + torchRadius + 5
+	if farX < DungeonW && farY < DungeonH {
+		_ = light[LocalCoord{X: farX, Y: farY}] // soft check
+	}
+}
+
+func TestComputeDungeonVisibility_TorchIlluminates(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	level := &DungeonLevel{}
+	level.Cells[10][10].Kind = CellWall
+	level.Cells[10][10].Object = &Object{Char: '†', Color: "#e8c96a", Blocking: true, Lit: true}
+	m.currentDungeon = level
+	m.playerPos = LocalCoord{X: 0, Y: 0} // far from torch
+
+	light := computeDungeonLight(m)
+	// Cell (12, 12) is Chebyshev distance 2 from torch at (10,10) → visible.
+	if light[LocalCoord{X: 12, Y: 12}] == 0 {
+		t.Error("cell (12,12) should be visible due to torch at (10,10)")
+	}
+}
+

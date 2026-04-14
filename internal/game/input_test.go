@@ -481,3 +481,121 @@ func TestHandleKey_Enter_DescendsWhenPickerClosed(t *testing.T) {
 		t.Fatalf("enter with picker closed: mode = %d, want ModeLocal", result.mode)
 	}
 }
+
+// ── dungeon input tests ───────────────────────────────────────────────────────
+
+// dungeonReadyModel returns a Model in ModeLocal standing on a dungeon entrance.
+func dungeonReadyModel() Model {
+	m := NewModel()
+	m.globalSeed = 42
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 10, Y: 10}
+	// Place dungeon entrance under the player.
+	m.localMap.Objects[10][10] = &Object{Char: '>', Color: "#e8c96a", Blocking: false}
+	return m
+}
+
+func TestHandleKey_DescendFromLocalToDungeon(t *testing.T) {
+	m := dungeonReadyModel()
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if result.mode != ModeDungeon {
+		t.Fatalf("enter on dungeon entrance: mode = %d, want ModeDungeon", result.mode)
+	}
+	if result.dungeonDepth != 1 {
+		t.Fatalf("dungeonDepth = %d, want 1", result.dungeonDepth)
+	}
+	if result.currentDungeon == nil {
+		t.Fatal("currentDungeon should not be nil")
+	}
+}
+
+func TestHandleKey_AscendFromDepth1ReturnsToLocal(t *testing.T) {
+	m := dungeonReadyModel()
+	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if m.mode != ModeDungeon {
+		t.Fatalf("precondition: mode = %d, want ModeDungeon", m.mode)
+	}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	if result.mode != ModeLocal {
+		t.Fatalf("esc at depth 1: mode = %d, want ModeLocal", result.mode)
+	}
+	if result.playerPos.X != 10 || result.playerPos.Y != 10 {
+		t.Fatalf("playerPos = {%d,%d}, want {10,10}", result.playerPos.X, result.playerPos.Y)
+	}
+}
+
+func TestHandleKey_AscendFromDeepLevel(t *testing.T) {
+	m := dungeonReadyModel()
+	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if !m.currentDungeon.HasDownStair {
+		t.Skip("generated level has no down-stair")
+	}
+	m.playerPos = m.currentDungeon.DownStair
+	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if m.dungeonDepth != 2 {
+		t.Fatalf("dungeonDepth = %d, want 2", m.dungeonDepth)
+	}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	if result.dungeonDepth != 1 {
+		t.Fatalf("dungeonDepth after ascend = %d, want 1", result.dungeonDepth)
+	}
+	if result.mode != ModeDungeon {
+		t.Fatalf("mode after ascend from depth 2 = %d, want ModeDungeon", result.mode)
+	}
+}
+
+func TestHandleKey_EscInDungeonNeverSetsWorldMode(t *testing.T) {
+	m := dungeonReadyModel()
+	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	if result.mode == ModeWorld {
+		t.Fatal("esc in ModeDungeon should never set ModeWorld")
+	}
+}
+
+func TestApplyDelta_DungeonBlockedByWall(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	level := &DungeonLevel{}
+	level.Cells[5][5].Kind = CellFloor
+	m.currentDungeon = level
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+
+	result := applyDelta(1, 0, m) // move right into wall
+	if result.playerPos.X != 5 {
+		t.Fatalf("movement into wall: playerPos.X = %d, want 5", result.playerPos.X)
+	}
+}
+
+func TestApplyDelta_DungeonBlockedByTorch(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	level := &DungeonLevel{}
+	level.Cells[5][5].Kind = CellFloor
+	level.Cells[6][5].Kind = CellWall
+	level.Cells[6][5].Object = &Object{Char: '†', Color: "#e8c96a", Blocking: true}
+	m.currentDungeon = level
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+
+	result := applyDelta(1, 0, m)
+	if result.playerPos.X != 5 {
+		t.Fatalf("movement into torch: playerPos.X = %d, want 5", result.playerPos.X)
+	}
+}
+
+func TestApplyDelta_DungeonMovesOverBrazier(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	level := &DungeonLevel{}
+	level.Cells[5][5].Kind = CellFloor
+	level.Cells[6][5].Kind = CellFloor
+	level.Cells[6][5].Object = &Object{Char: 'Ω', Color: "#e07030", Blocking: false}
+	m.currentDungeon = level
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+
+	result := applyDelta(1, 0, m)
+	if result.playerPos.X != 6 {
+		t.Fatalf("movement over brazier: playerPos.X = %d, want 6", result.playerPos.X)
+	}
+}

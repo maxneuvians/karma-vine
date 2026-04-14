@@ -361,7 +361,13 @@ func renderHUD(m Model) string {
 		displayTemp = perceivedTemperature(tile)
 	}
 	celsius := tempCelsius(displayTemp, tile.Elevation, m.timeOfDay)
-	if m.mode == ModeLocal {
+	if m.mode == ModeDungeon {
+		text = fmt.Sprintf(" Dungeon  Depth: %d  (%d, %d)  %s  %s",
+			m.dungeonDepth,
+			m.worldPos.X, m.worldPos.Y,
+			clock, speed,
+		)
+	} else if m.mode == ModeLocal {
 		text = fmt.Sprintf(" %s  %d°C  local (%d, %d)  world (%d, %d)  %s  %s",
 			biomeName(tile.Biome),
 			celsius,
@@ -590,12 +596,151 @@ func renderMapPicker(m Model, height int) string {
 func renderKeyBar(m Model) string {
 	speed := fmt.Sprintf("%d×", m.timeScale)
 	var hints string
-	if m.mode == ModeLocal {
+	if m.mode == ModeDungeon {
+		hints = fmt.Sprintf(" ↑↓←→/wasd move  < up  > down  esc exit  f torch  [/] speed (%s)  ? sidebar  q quit", speed)
+	} else if m.mode == ModeLocal {
 		hints = fmt.Sprintf(" ↑↓←→/wasd move  esc/< ascend  [/] speed (%s)  ? sidebar  q quit", speed)
 	} else {
 		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  [/] speed (%s)  m map  ? sidebar  q quit", m.worldZoom, speed)
 	}
 	return keyBarStyle.Render(hints)
+}
+
+// ── Dungeon renderer ──────────────────────────────────────────────────────────
+
+const (
+	playerViewRadius = 6
+	torchRadius      = 4
+)
+
+// computeDungeonLight returns a per-cell brightness value in [0, 1] based on
+// Chebyshev distance to the player and any lit torches/braziers. Cells with a
+// brightness of 0 are not rendered (fog of war).
+func computeDungeonLight(m Model) map[LocalCoord]float64 {
+	light := make(map[LocalCoord]float64)
+	if m.currentDungeon == nil {
+		return light
+	}
+
+	addSource := func(cx, cy, radius int) {
+		for dx := -radius; dx <= radius; dx++ {
+			for dy := -radius; dy <= radius; dy++ {
+				x := cx + dx
+				y := cy + dy
+				if x < 0 || x >= DungeonW || y < 0 || y >= DungeonH {
+					continue
+				}
+				absDx := dx
+				if absDx < 0 {
+					absDx = -absDx
+				}
+				absDy := dy
+				if absDy < 0 {
+					absDy = -absDy
+				}
+				chebDist := absDx
+				if absDy > chebDist {
+					chebDist = absDy
+				}
+				v := float64(radius+1-chebDist) / float64(radius+1)
+				coord := LocalCoord{X: x, Y: y}
+				if v > light[coord] {
+					light[coord] = v
+				}
+			}
+		}
+	}
+
+	// Player light source.
+	addSource(m.playerPos.X, m.playerPos.Y, playerViewRadius)
+
+	// Lit torch/brazier sources.
+	for tx := 0; tx < DungeonW; tx++ {
+		for ty := 0; ty < DungeonH; ty++ {
+			obj := m.currentDungeon.Cells[tx][ty].Object
+			if obj != nil && (obj.Char == '†' || obj.Char == 'Ω') && obj.Lit {
+				addSource(tx, ty, torchRadius)
+			}
+		}
+	}
+
+	return light
+}
+
+// renderDungeonMap renders a mapW×mapH viewport of the dungeon centred on playerPos.
+func renderDungeonMap(m Model, mapW, mapH int) string {
+	if m.currentDungeon == nil {
+		return "Dungeon not loaded."
+	}
+
+	if mapW > DungeonW {
+		mapW = DungeonW
+	}
+	if mapH > DungeonH {
+		mapH = DungeonH
+	}
+
+	// Camera origin centred on player, clamped to dungeon bounds.
+	camX := m.playerPos.X - mapW/2
+	camY := m.playerPos.Y - mapH/2
+	if camX < 0 {
+		camX = 0
+	}
+	if camY < 0 {
+		camY = 0
+	}
+	if camX > DungeonW-mapW {
+		camX = DungeonW - mapW
+	}
+	if camY > DungeonH-mapH {
+		camY = DungeonH - mapH
+	}
+
+	vis := computeDungeonLight(m)
+
+	rows := make([]string, 0, mapH)
+	for sy := 0; sy < mapH; sy++ {
+		y := camY + sy
+		var row strings.Builder
+		for sx := 0; sx < mapW; sx++ {
+			x := camX + sx
+
+			brightness := vis[LocalCoord{X: x, Y: y}]
+			if brightness == 0 {
+				row.WriteRune(' ')
+				continue
+			}
+
+			// Player overrides everything.
+			if x == m.playerPos.X && y == m.playerPos.Y {
+				row.WriteString(playerStyle.Render("@"))
+				continue
+			}
+
+			cell := m.currentDungeon.Cells[x][y]
+
+			// Object > base cell.
+			if cell.Object != nil {
+				color := cell.Object.Color
+				// Unlit torches and braziers render darker.
+				if (cell.Object.Char == '†' || cell.Object.Char == 'Ω') && !cell.Object.Lit {
+					color = "#444444"
+				}
+				row.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(string(cell.Object.Char)))
+				continue
+			}
+
+			switch cell.Kind {
+			case CellWall:
+				wallColor := lerpHex("#3d1a08", "#c07a40", brightness)
+				row.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(wallColor)).Render("█"))
+			case CellFloor:
+				row.WriteRune(' ')
+			}
+		}
+		rows = append(rows, row.String())
+	}
+	return strings.Join(rows, "\n")
 }
 
 // ── View composition ──────────────────────────────────────────────────────────
@@ -617,6 +762,8 @@ func buildView(m Model) string {
 		sidebar := renderSidebar(m, mapH)
 		if m.mode == ModeLocal {
 			mapView = renderLocalMap(m, mapW, mapH)
+		} else if m.mode == ModeDungeon {
+			mapView = renderDungeonMap(m, mapW, mapH)
 		} else {
 			mapView = renderWorldMap(m, mapW, mapH)
 		}
@@ -629,6 +776,8 @@ func buildView(m Model) string {
 		picker := renderMapPicker(m, mapH)
 		if m.mode == ModeLocal {
 			mapView = renderLocalMap(m, mapW, mapH)
+		} else if m.mode == ModeDungeon {
+			mapView = renderDungeonMap(m, mapW, mapH)
 		} else {
 			mapView = renderWorldMap(m, mapW, mapH)
 		}
@@ -636,6 +785,8 @@ func buildView(m Model) string {
 	} else {
 		if m.mode == ModeLocal {
 			mapView = renderLocalMap(m, m.viewportW, mapH)
+		} else if m.mode == ModeDungeon {
+			mapView = renderDungeonMap(m, m.viewportW, mapH)
 		} else {
 			mapView = renderWorldMap(m, m.viewportW, mapH)
 		}

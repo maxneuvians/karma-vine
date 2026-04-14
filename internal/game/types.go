@@ -46,6 +46,7 @@ type Object struct {
 	Char     rune
 	Color    string
 	Blocking bool
+	Lit      bool // true when the object emits light (torches/braziers in dungeons)
 }
 
 // Animal is a creature on the local map.
@@ -91,7 +92,46 @@ type Mode int
 const (
 	ModeWorld Mode = iota
 	ModeLocal
+	ModeDungeon
 )
+
+// CellKind identifies the type of a dungeon cell.
+type CellKind int
+
+const (
+	CellWall  CellKind = iota
+	CellFloor
+)
+
+// DungeonW and DungeonH are the dimensions of a dungeon level.
+const (
+	DungeonW = 80
+	DungeonH = 24
+)
+
+// DungeonCell is a single cell in a dungeon level grid.
+type DungeonCell struct {
+	Kind   CellKind
+	Object *Object
+}
+
+// DungeonLevel is one floor of a dungeon.
+type DungeonLevel struct {
+	Cells        [DungeonW][DungeonH]DungeonCell
+	UpStair      LocalCoord
+	DownStair    LocalCoord
+	HasDownStair bool
+}
+
+// DungeonMeta stores per-entrance dungeon metadata.
+type DungeonMeta struct {
+	MaxDepth int
+}
+
+// dungeonKey is a cache key for a specific dungeon level.
+type dungeonKey struct {
+	wx, wy, depth int
+}
 
 // MapMode describes the active world-map overlay.
 type MapMode int

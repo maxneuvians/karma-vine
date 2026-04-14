@@ -354,6 +354,23 @@ func GenerateLocalMap(worldX, worldY, globalSeed int, biome Biome) *LocalMap {
 		}
 	}
 
+	// Place dungeon entrance on a passable cell not occupied by another object.
+	{
+		type pos struct{ x, y int }
+		var candidates []pos
+		for x := 0; x < LocalMapW; x++ {
+			for y := 0; y < LocalMapH; y++ {
+				if lm.Ground[x][y].Passable && lm.Objects[x][y] == nil && !lm.Ground[x][y].HasFire {
+					candidates = append(candidates, pos{x, y})
+				}
+			}
+		}
+		if len(candidates) > 0 {
+			p := candidates[rng.Intn(len(candidates))]
+			lm.Objects[p.x][p.y] = &Object{Char: '>', Color: "#ff3333", Blocking: false}
+		}
+	}
+
 	buildLitMap(lm)
 	return lm
 }

@@ -74,17 +74,75 @@ func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
 	case "right", "d":
 		m = applyDelta(1, 0, m)
 
-	// Descend to local map
+	// Descend to local map / dungeon
 	case "enter", ">":
 		if m.mode == ModeWorld {
 			m.localMap = LocalMapFor(m.worldPos.X, m.worldPos.Y, &m)
 			m.mode = ModeLocal
 			m.playerPos = findSpawnPoint(m.localMap)
+		} else if m.mode == ModeLocal {
+			// Check if player is on a dungeon entrance.
+			if m.localMap != nil {
+				obj := m.localMap.Objects[m.playerPos.X][m.playerPos.Y]
+				if obj != nil && obj.Char == '>' {
+					_ = DungeonMetaFor(m.worldPos.X, m.worldPos.Y, &m)
+					level := DungeonLevelFor(m.worldPos.X, m.worldPos.Y, 1, &m)
+					m.currentDungeon = level
+					m.dungeonDepth = 1
+					m.dungeonEntryPos = m.playerPos
+					m.mode = ModeDungeon
+					m.playerPos = level.UpStair
+				}
+			}
+		} else if m.mode == ModeDungeon {
+			// Descend to next dungeon level.
+			if m.currentDungeon != nil && m.currentDungeon.HasDownStair &&
+				m.playerPos.X == m.currentDungeon.DownStair.X &&
+				m.playerPos.Y == m.currentDungeon.DownStair.Y {
+				nextDepth := m.dungeonDepth + 1
+				level := DungeonLevelFor(m.worldPos.X, m.worldPos.Y, nextDepth, &m)
+				m.currentDungeon = level
+				m.dungeonDepth = nextDepth
+				m.playerPos = level.UpStair
+			}
 		}
 
-	// Ascend to world map
+	// Toggle torch/brazier (dungeon only)
+	case "f":
+		if m.mode == ModeDungeon && m.currentDungeon != nil {
+			// Check the player's own cell and all 4 neighbours.
+			candidates := []LocalCoord{
+				m.playerPos,
+				{X: m.playerPos.X, Y: m.playerPos.Y - 1},
+				{X: m.playerPos.X, Y: m.playerPos.Y + 1},
+				{X: m.playerPos.X - 1, Y: m.playerPos.Y},
+				{X: m.playerPos.X + 1, Y: m.playerPos.Y},
+			}
+			for _, c := range candidates {
+				if c.X < 0 || c.X >= DungeonW || c.Y < 0 || c.Y >= DungeonH {
+					continue
+				}
+				obj := m.currentDungeon.Cells[c.X][c.Y].Object
+				if obj != nil && (obj.Char == '†' || obj.Char == 'Ω') {
+					obj.Lit = !obj.Lit
+				}
+			}
+		}
+
+	// Ascend from dungeon / local map
 	case "esc", "<":
-		if m.mode == ModeLocal {
+		if m.mode == ModeDungeon {
+			if m.dungeonDepth > 1 {
+				prevDepth := m.dungeonDepth - 1
+				level := DungeonLevelFor(m.worldPos.X, m.worldPos.Y, prevDepth, &m)
+				m.currentDungeon = level
+				m.dungeonDepth = prevDepth
+				m.playerPos = level.DownStair
+			} else {
+				m.mode = ModeLocal
+				m.playerPos = m.dungeonEntryPos
+			}
+		} else if m.mode == ModeLocal {
 			m.mode = ModeWorld
 			// Do NOT nil-out m.localMap — it stays in localCache
 		}
@@ -169,6 +227,27 @@ func applyDelta(dx, dy int, m Model) Model {
 		// Collision check
 		obj := m.localMap.Objects[newX][newY]
 		if obj != nil && obj.Blocking {
+			return m
+		}
+		m.playerPos.X = newX
+		m.playerPos.Y = newY
+
+	case ModeDungeon:
+		if m.currentDungeon == nil {
+			return m
+		}
+		newX := m.playerPos.X + dx
+		newY := m.playerPos.Y + dy
+		// Bounds check
+		if newX < 0 || newX >= DungeonW || newY < 0 || newY >= DungeonH {
+			return m
+		}
+		// Wall collision
+		if m.currentDungeon.Cells[newX][newY].Kind == CellWall {
+			return m
+		}
+		// Object blocking check
+		if obj := m.currentDungeon.Cells[newX][newY].Object; obj != nil && obj.Blocking {
 			return m
 		}
 		m.playerPos.X = newX

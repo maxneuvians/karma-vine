@@ -19,6 +19,13 @@ type Model struct {
 	localMap   *LocalMap
 	localCache map[WorldCoord]*LocalMap
 
+	// Dungeon tier
+	dungeonCache    map[dungeonKey]*DungeonLevel
+	dungeonMeta     map[WorldCoord]DungeonMeta
+	currentDungeon  *DungeonLevel
+	dungeonDepth    int
+	dungeonEntryPos LocalCoord
+
 	// Player
 	playerPos LocalCoord
 
@@ -40,12 +47,14 @@ type Model struct {
 // NewModel returns an initialised Model with non-nil maps.
 func NewModel() Model {
 	m := Model{
-		globalSeed: rand.New(rand.NewSource(time.Now().UnixNano())).Int(),
-		chunks:     make(map[ChunkCoord]*Chunk),
-		localCache: make(map[WorldCoord]*LocalMap),
-		timeOfDay:  0.25, // start at 6 AM
-		timeScale:  1,
-		worldZoom:  1,
+		globalSeed:   rand.New(rand.NewSource(time.Now().UnixNano())).Int(),
+		chunks:       make(map[ChunkCoord]*Chunk),
+		localCache:   make(map[WorldCoord]*LocalMap),
+		dungeonCache: make(map[dungeonKey]*DungeonLevel),
+		dungeonMeta:  make(map[WorldCoord]DungeonMeta),
+		timeOfDay:    0.25, // start at 6 AM
+		timeScale:    1,
+		worldZoom:    1,
 	}
 	m.worldPos = findWorldSpawn(&m)
 	return m

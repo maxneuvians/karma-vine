@@ -1,7 +1,7 @@
 ## Requirements
 
 ### Requirement: World map is rendered using viewport math
-In `ModeWorld`, the system SHALL render a grid of `viewportW × (viewportH - 1)` cells. For each screen cell `(screenX, screenY)`, the world coordinate SHALL be `worldX = playerWorldX + (screenX - viewportW/2)`, `worldY = playerWorldY + (screenY - (viewportH-1)/2)`. Each cell SHALL display `tile.Char` styled with `tile.Color` as the Lipgloss foreground.
+In `ModeWorld`, the system SHALL render a grid of `viewportW × (viewportH - 1)` cells. For each screen cell `(screenX, screenY)`, the world coordinate SHALL be `worldX = playerWorldX + (screenX - viewportW/2)`, `worldY = playerWorldY + (screenY - (viewportH-1)/2)`. Each cell SHALL display the char and color returned by `tileVisual(tile, m.mapMode)` as the Lipgloss foreground, rather than `tile.Char` and `tile.Color` directly. When `m.mapMode != MapModeDefault`, the dim-factor color scaling SHALL still be applied to the color returned by `tileVisual`.
 
 #### Scenario: Player tile appears at screen centre
 - **WHEN** the world map is rendered
@@ -10,6 +10,21 @@ In `ModeWorld`, the system SHALL render a grid of `viewportW × (viewportH - 1)`
 #### Scenario: All visible cells are drawn without blank gaps
 - **WHEN** the world map is rendered with a 40×20 viewport
 - **THEN** the rendered string contains exactly 39 newline characters (one per row, last row has no trailing newline)
+
+#### Scenario: Temperature mode renders with temperature-derived color
+- **WHEN** `m.mapMode == MapModeTemperature` and the world map is rendered
+- **THEN** each cell's color is derived from `tileVisual(tile, MapModeTemperature)`, not from `tile.Color`
+
+### Requirement: View composition includes map picker overlay when active
+The system SHALL, in `buildView`, check `m.showMapPicker`. When true, it SHALL render `renderMapPicker(m, mapH)` on the right side of the viewport (using the same composition approach as `showSidebar`), reducing the available map width by the picker panel width. When both `showMapPicker` and `showSidebar` are false, layout is unchanged from the current implementation.
+
+#### Scenario: Map picker reduces map width when open
+- **WHEN** `showMapPicker == true` and the viewport is 80×24
+- **THEN** the rendered map occupies fewer than 80 columns (picker panel takes the remainder)
+
+#### Scenario: No layout change when picker is closed
+- **WHEN** `showMapPicker == false` and `showSidebar == false`
+- **THEN** the map renders at full viewport width (minus HUD rows), identical to current behavior
 
 ### Requirement: Local map is rendered with layered glyphs
 In `ModeLocal`, the system SHALL render the 42×18 `LocalMap` grid. For each cell, it SHALL display: the animal's `Char` if an animal occupies that cell, else the object's `Char` if `Objects[x][y]` is non-nil, else the ground's `Char`. If the cell matches `playerPos`, the player glyph `@` SHALL be drawn in `#f0f6fc` bold, overriding all other layers.
@@ -58,6 +73,17 @@ When rendering a local map cell, the effective dim factor for that cell SHALL be
 #### Scenario: Distant cell unaffected by fire at midnight
 - **WHEN** `timeOfDay == 0.0` and a cell has `LitMap[x][y] == 0`
 - **THEN** the effective dim factor for that cell is `0.15` (ambient only)
+
+### Requirement: buildView dispatches to dungeon render path
+The system SHALL extend `buildView` to dispatch to `renderDungeonMap` when `m.mode == ModeDungeon`. The dungeon render path SHALL compose the dungeon map with the HUD and optional key bar, matching the structure of the local map render path.
+
+#### Scenario: Dungeon map renders when mode is ModeDungeon
+- **WHEN** `buildView` is called with `m.mode == ModeDungeon`
+- **THEN** the returned string contains dungeon cell characters (`#`, `.`, `@`) and does not contain world-map tile characters
+
+#### Scenario: HUD is present in dungeon view
+- **WHEN** `buildView` is called with `m.mode == ModeDungeon`
+- **THEN** the returned string contains the HUD status bar with dungeon depth information
 
 ### Requirement: Viewport dimensions update on window resize
 The system SHALL handle `tea.WindowSizeMsg` in `Update()`, storing `msg.Width` in `viewportW` and `msg.Height` in `viewportH`. The next `View()` call SHALL use the updated dimensions.
