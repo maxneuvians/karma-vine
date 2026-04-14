@@ -34,16 +34,40 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 	// While the inventory panel is open, arrow keys navigate the cursor.
 	if m.screenMode == ScreenInventory {
 		switch msg.String() {
+		case "space":
+			m.paused = !m.paused
+			return m, nil
+		case "tab":
+			m.equipFocused = !m.equipFocused
 		case "up", "w":
-			if m.inventoryCursor > 0 {
-				m.inventoryCursor--
+			if m.equipFocused {
+				if m.equipCursor > 0 {
+					m.equipCursor--
+				}
+			} else {
+				if m.inventoryCursor > 0 {
+					m.inventoryCursor--
+				}
 			}
 		case "down", "s":
-			if m.inventoryCursor < len(m.inventory.Items)-1 {
-				m.inventoryCursor++
+			if m.equipFocused {
+				if m.equipCursor < NumBodySlots-1 {
+					m.equipCursor++
+				}
+			} else {
+				if m.inventoryCursor < len(m.inventory.Items)-1 {
+					m.inventoryCursor++
+				}
+			}
+		case "e":
+			if m.equipFocused {
+				m = unequipSlot(m)
+			} else {
+				m = equipItem(m)
 			}
 		case "i":
 			m.screenMode = ScreenNormal
+			m.paused = m.pausedBeforeInventory
 			m = clampInventoryCursor(m)
 		case "d":
 			m = handleDrop(m)
@@ -55,12 +79,17 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			return m, tea.Quit
 		case "esc":
 			m.screenMode = ScreenNormal
+			m.paused = m.pausedBeforeInventory
 			m = clampInventoryCursor(m)
 		}
 		return m, nil
 	}
 
 	switch msg.String() {
+	case "space":
+		m.paused = !m.paused
+		return m, nil
+
 	case "q", "ctrl+c":
 		return m, tea.Quit
 
@@ -95,12 +124,24 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 
 	// Movement
 	case "up", "w":
+		if m.paused && m.screenMode == ScreenNormal {
+			break
+		}
 		m = applyDelta(0, -1, m)
 	case "down", "s":
+		if m.paused && m.screenMode == ScreenNormal {
+			break
+		}
 		m = applyDelta(0, 1, m)
 	case "left", "a":
+		if m.paused && m.screenMode == ScreenNormal {
+			break
+		}
 		m = applyDelta(-1, 0, m)
 	case "right", "d":
+		if m.paused && m.screenMode == ScreenNormal {
+			break
+		}
 		m = applyDelta(1, 0, m)
 
 	// Descend to local map / dungeon
@@ -164,8 +205,11 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 	case "i":
 		if m.screenMode == ScreenInventory {
 			m.screenMode = ScreenNormal
+			m.paused = m.pausedBeforeInventory
 			m = clampInventoryCursor(m)
 		} else {
+			m.pausedBeforeInventory = m.paused
+			m.paused = true
 			m.screenMode = ScreenInventory
 		}
 
@@ -345,6 +389,115 @@ func clampInventoryCursor(m Model) Model {
 	} else if m.inventoryCursor > max {
 		m.inventoryCursor = max
 	}
+	return m
+}
+
+// equipItem equips the inventory item at inventoryCursor to its best available slot.
+func equipItem(m Model) Model {
+	if len(m.inventory.Items) == 0 || m.inventoryCursor >= len(m.inventory.Items) {
+		return m
+	}
+	item := m.inventory.Items[m.inventoryCursor]
+	if len(item.Slots) == 0 {
+		return m // not equippable
+	}
+
+	// Find the first empty compatible slot.
+	targetSlot := item.Slots[0]
+	for _, s := range item.Slots {
+		if m.inventory.Equipped[s].Name == "" {
+			targetSlot = s
+			break
+		}
+	}
+
+	// If slot is occupied, swap — but only if inventory has room for the old item.
+	if m.inventory.Equipped[targetSlot].Name != "" {
+		old := m.inventory.Equipped[targetSlot]
+		// Check if we can fit the old item back (stacking or new slot).
+		canStack := false
+		for i := range m.inventory.Items {
+			if m.inventory.Items[i].Name == old.Name {
+				canStack = true
+				break
+			}
+		}
+		// After removing the equipped item, we need space: we're removing one item from
+		// inventory (the newly equipped) and potentially adding one (the swapped-out).
+		// Net change depends on whether the removed item's slot gets freed.
+		// Simplify: after removing the item being equipped, can we fit the old?
+		futureLen := len(m.inventory.Items) - 1
+		if item.Count > 1 {
+			futureLen = len(m.inventory.Items) // slot stays (count decremented)
+		}
+		if !canStack && futureLen >= InventoryMaxSlots {
+			return m // can't fit swapped item
+		}
+
+		// Return old item to inventory.
+		stacked := false
+		for i := range m.inventory.Items {
+			if m.inventory.Items[i].Name == old.Name {
+				m.inventory.Items[i].Count++
+				stacked = true
+				break
+			}
+		}
+		if !stacked {
+			m.inventory.Items = append(m.inventory.Items, old)
+		}
+	}
+
+	// Place new item in slot.
+	equipped := item
+	equipped.Count = 1
+	m.inventory.Equipped[targetSlot] = equipped
+
+	// Remove from inventory.
+	m.inventory.Items[m.inventoryCursor].Count--
+	if m.inventory.Items[m.inventoryCursor].Count <= 0 {
+		m.inventory.Items = append(m.inventory.Items[:m.inventoryCursor], m.inventory.Items[m.inventoryCursor+1:]...)
+	}
+	m = clampInventoryCursor(m)
+	return m
+}
+
+// unequipSlot moves the equipped item at equipCursor back to inventory.
+func unequipSlot(m Model) Model {
+	slot := BodySlot(m.equipCursor)
+	if m.inventory.Equipped[slot].Name == "" {
+		return m // empty slot
+	}
+
+	old := m.inventory.Equipped[slot]
+
+	// Check if inventory has room.
+	canStack := false
+	for i := range m.inventory.Items {
+		if m.inventory.Items[i].Name == old.Name {
+			canStack = true
+			break
+		}
+	}
+	if !canStack && len(m.inventory.Items) >= InventoryMaxSlots {
+		return m // inventory full
+	}
+
+	// Add to inventory.
+	stacked := false
+	for i := range m.inventory.Items {
+		if m.inventory.Items[i].Name == old.Name {
+			m.inventory.Items[i].Count++
+			stacked = true
+			break
+		}
+	}
+	if !stacked {
+		m.inventory.Items = append(m.inventory.Items, old)
+	}
+
+	// Clear the slot.
+	m.inventory.Equipped[slot] = Item{}
 	return m
 }
 
@@ -567,6 +720,9 @@ func handleMouseClick(msg tea.MouseClickMsg, m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.showSidebar || m.showMapPicker {
+		return m, nil
+	}
+	if m.paused {
 		return m, nil
 	}
 	if m.mode != ModeLocal && m.mode != ModeDungeon {

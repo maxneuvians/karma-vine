@@ -859,6 +859,239 @@ func TestUseAxe_NoTarget(t *testing.T) {
 
 // ── ScreenMode tests ─────────────────────────────────────────────────────────
 
+// --- Pause tests ---
+
+func TestPause_SpaceTogglesPaused(t *testing.T) {
+	m := NewModel()
+	if m.paused {
+		t.Fatal("NewModel should start unpaused")
+	}
+	result, _ := handleKey(tea.KeyPressMsg{Code: ' ', Text: " "}, m)
+	if !result.paused {
+		t.Fatal("space should set paused to true")
+	}
+	result, _ = handleKey(tea.KeyPressMsg{Code: ' ', Text: " "}, result)
+	if result.paused {
+		t.Fatal("second space should set paused to false")
+	}
+}
+
+func TestPause_MovementBlocked(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.paused = true
+	m.worldPos = WorldCoord{X: 10, Y: 10}
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyRight}, m)
+	if result.worldPos.X != 10 || result.worldPos.Y != 10 {
+		t.Fatalf("paused movement: worldPos = {%d,%d}, want {10,10}", result.worldPos.X, result.worldPos.Y)
+	}
+}
+
+func TestPause_InventoryCursorUnaffected(t *testing.T) {
+	m := NewModel()
+	m.paused = true
+	m.screenMode = ScreenInventory
+	m.inventory.Items = []Item{
+		{Name: "A", Count: 1},
+		{Name: "B", Count: 1},
+	}
+	m.inventoryCursor = 0
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, m)
+	if result.inventoryCursor != 1 {
+		t.Fatalf("paused inventory cursor: got %d, want 1", result.inventoryCursor)
+	}
+}
+
+// ── Equipment input tests ────────────────────────────────────────────────────
+
+func TestEquipItem_EmptySlot(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	// Clear default outfit so Head is empty.
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Items = []Item{
+		{Char: '⛑', Color: "#ff0000", Name: "Helmet", Count: 1, Slots: []BodySlot{SlotHead}},
+	}
+	m.inventoryCursor = 0
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	if result.inventory.Equipped[SlotHead].Name != "Helmet" {
+		t.Fatalf("expected Helmet in Head slot, got %q", result.inventory.Equipped[SlotHead].Name)
+	}
+	if len(result.inventory.Items) != 0 {
+		t.Fatalf("expected 0 items after equip, got %d", len(result.inventory.Items))
+	}
+}
+
+func TestEquipItem_Swap(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Equipped[SlotHead] = Item{Char: '⛑', Color: "#aaa", Name: "Old Hat", Count: 1, Slots: []BodySlot{SlotHead}}
+	m.inventory.Items = []Item{
+		{Char: '⛑', Color: "#ff0000", Name: "New Helmet", Count: 1, Slots: []BodySlot{SlotHead}},
+	}
+	m.inventoryCursor = 0
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	if result.inventory.Equipped[SlotHead].Name != "New Helmet" {
+		t.Fatalf("expected New Helmet in Head, got %q", result.inventory.Equipped[SlotHead].Name)
+	}
+	if len(result.inventory.Items) != 1 || result.inventory.Items[0].Name != "Old Hat" {
+		t.Fatalf("expected Old Hat in inventory, got %+v", result.inventory.Items)
+	}
+}
+
+func TestEquipItem_NonEquippable(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Items = []Item{
+		{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 1}, // no Slots
+	}
+	m.inventoryCursor = 0
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	if len(result.inventory.Items) != 1 || result.inventory.Items[0].Name != "Torch" {
+		t.Fatalf("non-equippable item should remain unchanged, got %+v", result.inventory.Items)
+	}
+}
+
+func TestEquipItem_FullInventorySwapRejected(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Equipped[SlotHead] = Item{Char: '⛑', Color: "#aaa", Name: "Old Hat", Count: 1, Slots: []BodySlot{SlotHead}}
+	// Fill inventory to max.
+	for i := 0; i < InventoryMaxSlots; i++ {
+		m.inventory.Items = append(m.inventory.Items, Item{
+			Char: rune('a' + i), Color: "#fff", Name: fmt.Sprintf("Item%d", i), Count: 1,
+			Slots: []BodySlot{SlotHead},
+		})
+	}
+	m.inventoryCursor = 0
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	// Swap should be rejected because after removing item0, we have 7 slots but adding Old Hat = 8 = max,
+	// which is fine. Let me reconsider: future len after removing = 7. 7 < 8 so it fits. Let me adjust.
+	// Actually this test should produce a rejection. Let me set count > 1 on the item being equipped
+	// so the slot stays (futureLen = 8), and then old hat can't stack and 8 >= InventoryMaxSlots.
+	// Let me redo this properly.
+	_ = result // rebuild below
+	m2 := NewModel()
+	m2.screenMode = ScreenInventory
+	m2.inventory.Equipped = [NumBodySlots]Item{}
+	m2.inventory.Equipped[SlotHead] = Item{Char: '⛑', Color: "#aaa", Name: "Old Hat", Count: 1, Slots: []BodySlot{SlotHead}}
+	for i := 0; i < InventoryMaxSlots; i++ {
+		m2.inventory.Items = append(m2.inventory.Items, Item{
+			Char: rune('a' + i), Color: "#fff", Name: fmt.Sprintf("Filler%d", i), Count: 2,
+			Slots: []BodySlot{SlotHead},
+		})
+	}
+	m2.inventoryCursor = 0
+	result2, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m2)
+	// futureLen = 8 (count decremented, slot stays). Old Hat can't stack. 8 >= 8, rejected.
+	if result2.inventory.Equipped[SlotHead].Name != "Old Hat" {
+		t.Fatalf("swap should be rejected when inventory full, but equipped changed to %q", result2.inventory.Equipped[SlotHead].Name)
+	}
+}
+
+func TestUnequipSlot_Occupied(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.equipFocused = true
+	m.equipCursor = int(SlotChest)
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Equipped[SlotChest] = Item{Char: '♦', Color: "#a0a0a0", Name: "Cloth Tunic", Count: 1, Slots: []BodySlot{SlotChest}}
+	m.inventory.Items = []Item{}
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	if result.inventory.Equipped[SlotChest].Name != "" {
+		t.Fatalf("unequip should clear slot, got %q", result.inventory.Equipped[SlotChest].Name)
+	}
+	if len(result.inventory.Items) != 1 || result.inventory.Items[0].Name != "Cloth Tunic" {
+		t.Fatalf("expected Cloth Tunic in inventory, got %+v", result.inventory.Items)
+	}
+}
+
+func TestUnequipSlot_Empty(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.equipFocused = true
+	m.equipCursor = int(SlotHead)
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Items = []Item{}
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	if len(result.inventory.Items) != 0 {
+		t.Fatal("unequip empty slot should not add items")
+	}
+}
+
+func TestUnequipSlot_FullInventoryRejected(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.equipFocused = true
+	m.equipCursor = int(SlotHead)
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Equipped[SlotHead] = Item{Char: '⛑', Color: "#ff0000", Name: "Helmet", Count: 1, Slots: []BodySlot{SlotHead}}
+	for i := 0; i < InventoryMaxSlots; i++ {
+		m.inventory.Items = append(m.inventory.Items, Item{
+			Char: rune('a' + i), Color: "#fff", Name: fmt.Sprintf("Filler%d", i), Count: 1,
+		})
+	}
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'e', Text: "e"}, m)
+	if result.inventory.Equipped[SlotHead].Name != "Helmet" {
+		t.Fatalf("unequip should be rejected when inventory full, got %q", result.inventory.Equipped[SlotHead].Name)
+	}
+}
+
+func TestTabKey_TogglesEquipFocused(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	if m.equipFocused {
+		t.Fatal("should start not focused on equip")
+	}
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyTab}, m)
+	if !result.equipFocused {
+		t.Fatal("Tab should toggle equipFocused to true")
+	}
+	result, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyTab}, result)
+	if result.equipFocused {
+		t.Fatal("second Tab should toggle equipFocused to false")
+	}
+	// Tab outside ScreenInventory is no-op.
+	m2 := NewModel()
+	m2.screenMode = ScreenNormal
+	result2, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyTab}, m2)
+	if result2.equipFocused {
+		t.Fatal("Tab outside ScreenInventory should not toggle equipFocused")
+	}
+}
+
+func TestEquipCursor_Navigation(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.equipFocused = true
+	m.equipCursor = 0
+
+	// Move down.
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, m)
+	if result.equipCursor != 1 {
+		t.Fatalf("down: equipCursor = %d, want 1", result.equipCursor)
+	}
+
+	// Clamp at top.
+	m.equipCursor = 0
+	result, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyUp}, m)
+	if result.equipCursor != 0 {
+		t.Fatalf("up at 0: equipCursor = %d, want 0", result.equipCursor)
+	}
+
+	// Clamp at bottom.
+	m.equipCursor = NumBodySlots - 1
+	result, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, m)
+	if result.equipCursor != NumBodySlots-1 {
+		t.Fatalf("down at max: equipCursor = %d, want %d", result.equipCursor, NumBodySlots-1)
+	}
+}
+
+// ── ScreenMode tests ─────────────────────────────────────────────────────────
+
 // 8.2 NewModel starts in ScreenNormal.
 func TestNewModel_ScreenNormal(t *testing.T) {
 	m := NewModel()

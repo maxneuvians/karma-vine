@@ -33,6 +33,8 @@ type Model struct {
 	inventory       Inventory
 	screenMode      ScreenMode
 	inventoryCursor int
+	equipFocused    bool
+	equipCursor     int
 
 	// UI
 	viewportW       int
@@ -47,6 +49,19 @@ type Model struct {
 	// Time
 	timeOfDay float64 // [0, 1): 0=midnight, 0.25=6AM, 0.5=noon, 0.75=6PM
 	timeScale int    // discrete: 1, 2, 5, 10
+
+	// Pause
+	paused              bool
+	pausedBeforeInventory bool // tracks pause state when inventory was opened
+}
+
+// defaultOutfit returns the starting equipment for a new character.
+func defaultOutfit() [NumBodySlots]Item {
+	var eq [NumBodySlots]Item
+	eq[SlotChest] = Item{Char: '♦', Color: "#a0a0a0", Name: "Cloth Tunic", Count: 1, Slots: []BodySlot{SlotChest}}
+	eq[SlotLegs] = Item{Char: '‖', Color: "#a0a0a0", Name: "Cloth Pants", Count: 1, Slots: []BodySlot{SlotLegs}}
+	eq[SlotFeet] = Item{Char: '∩', Color: "#8B4513", Name: "Leather Boots", Count: 1, Slots: []BodySlot{SlotFeet}}
+	return eq
 }
 
 // NewModel returns an initialised Model with non-nil maps.
@@ -57,7 +72,7 @@ func NewModel() Model {
 		localCache:   make(map[WorldCoord]*LocalMap),
 		dungeonCache: make(map[dungeonKey]*DungeonLevel),
 		dungeonMeta:  make(map[WorldCoord]DungeonMeta),
-		inventory:    Inventory{Items: []Item{}},
+		inventory:    Inventory{Items: []Item{}, Equipped: defaultOutfit()},
 		timeOfDay:    0.25, // start at 6 AM
 		timeScale:    1,
 		worldZoom:    1,
@@ -88,6 +103,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		return handleMouseWheel(msg, m)
 	case TickMsg:
+		if m.paused {
+			return m, tickCmd()
+		}
 		// Advance time: at 10× speed one full day takes 30 s (60 ticks).
 		// Base rate (1×) is 600 ticks = 5 minutes per cycle.
 		delta := float64(m.timeScale) / 600.0

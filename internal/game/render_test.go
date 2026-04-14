@@ -968,3 +968,60 @@ func TestBuildView_ScreenNormal(t *testing.T) {
 	}
 }
 
+// --- Pause HUD tests ---
+
+func TestPause_HUDContainsPausedLabel(t *testing.T) {
+	m := NewModel()
+	m.paused = true
+	m.mode = ModeWorld
+	out := renderHUD(m)
+	if !strings.Contains(out, "[PAUSED]") {
+		t.Errorf("paused HUD should contain '[PAUSED]', got:\n%s", out)
+	}
+}
+
+func TestPause_HUDNoPausedLabelWhenUnpaused(t *testing.T) {
+	m := NewModel()
+	m.paused = false
+	m.mode = ModeWorld
+	out := renderHUD(m)
+	if strings.Contains(out, "[PAUSED]") {
+		t.Errorf("unpaused HUD should not contain '[PAUSED]', got:\n%s", out)
+	}
+}
+
+// --- Equipment render tests ---
+
+func TestRenderFullscreenInventory_EquippedSlot(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenInventory
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	m.inventory.Equipped[SlotChest] = Item{Char: '♦', Color: "#a0a0a0", Name: "Cloth Tunic", Count: 1, Slots: []BodySlot{SlotChest}}
+	out := renderFullscreenInventory(m)
+	if !strings.Contains(out, "Cloth Tunic") {
+		t.Error("ragdoll should show equipped item name 'Cloth Tunic'")
+	}
+}
+
+func TestRenderFullscreenInventory_FocusedHeader(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenInventory
+
+	// Not focused on equipment → Inventory header should be bold style.
+	m.equipFocused = false
+	out1 := renderFullscreenInventory(m)
+
+	// Focused on equipment → Equipment header should be bold style.
+	m.equipFocused = true
+	out2 := renderFullscreenInventory(m)
+
+	// The outputs should differ (different header styles).
+	if out1 == out2 {
+		t.Error("rendering should differ when equipFocused changes")
+	}
+}
+

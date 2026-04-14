@@ -389,6 +389,9 @@ func renderHUD(m Model) string {
 			clock, speed, items,
 		)
 	}
+	if m.paused {
+		text += "  [PAUSED]"
+	}
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("#ccd9e0")).Render(text)
 }
 
@@ -847,8 +850,12 @@ func renderFullscreenInventory(m Model) string {
 
 	// ── Left column: item list ──
 	var leftLines []string
+	if !m.equipFocused {
+		leftLines = append(leftLines, invHeaderStyle.Render(" Inventory"))
+	} else {
+		leftLines = append(leftLines, invEmptyStyle.Render(" Inventory"))
+	}
 	leftLines = append(leftLines,
-		invHeaderStyle.Render(" Inventory"),
 		sidebarSubStyle.Render(" "+strings.Repeat("─", leftW-2)),
 	)
 
@@ -857,10 +864,11 @@ func renderFullscreenInventory(m Model) string {
 	} else {
 		for i, item := range m.inventory.Items {
 			icon := lipgloss.NewStyle().Foreground(lipgloss.Color(item.Color)).Render(string(item.Char))
-			label := fmt.Sprintf(" %s %s  x%d", icon, item.Name, item.Count)
-			if i == m.inventoryCursor {
+			if i == m.inventoryCursor && !m.equipFocused {
+				label := fmt.Sprintf(" > %s %s  x%d", icon, item.Name, item.Count)
 				leftLines = append(leftLines, invCursorStyle.Render(label))
 			} else {
+				label := fmt.Sprintf("   %s %s  x%d", icon, item.Name, item.Count)
 				leftLines = append(leftLines, invItemStyle.Render(label))
 			}
 		}
@@ -870,9 +878,9 @@ func renderFullscreenInventory(m Model) string {
 	for len(leftLines) < m.viewportH-1 {
 		leftLines = append(leftLines, "")
 	}
-	hint := " i close  d drop  u use"
+	hint := " i close  d drop  u use  e equip  Tab switch"
 	if m.mode == ModeWorld {
-		hint = " i close"
+		hint = " i close  e equip  Tab switch"
 	}
 	leftLines = leftLines[:m.viewportH-1]
 	leftLines = append(leftLines, sidebarSubStyle.Render(hint))
@@ -881,8 +889,12 @@ func renderFullscreenInventory(m Model) string {
 
 	// ── Right column: ragdoll equipment ──
 	var rightLines []string
+	if m.equipFocused {
+		rightLines = append(rightLines, invHeaderStyle.Render(" Equipment"))
+	} else {
+		rightLines = append(rightLines, invEmptyStyle.Render(" Equipment"))
+	}
 	rightLines = append(rightLines,
-		invHeaderStyle.Render(" Equipment"),
 		sidebarSubStyle.Render(" "+strings.Repeat("─", rightW-2)),
 	)
 
@@ -898,8 +910,23 @@ func renderFullscreenInventory(m Model) string {
 		rightLines = append(rightLines, line)
 	}
 	rightLines = append(rightLines, "")
-	for _, slot := range equipSlots {
-		rightLines = append(rightLines, fmt.Sprintf(" %-11s: [ Empty ]", slot))
+	for i, slot := range equipSlots {
+		var row string
+		if m.equipFocused && i == m.equipCursor {
+			if m.inventory.Equipped[i].Name != "" {
+				row = fmt.Sprintf(" > %-11s: [ %s ]", slot, m.inventory.Equipped[i].Name)
+			} else {
+				row = fmt.Sprintf(" > %-11s: [ Empty ]", slot)
+			}
+			rightLines = append(rightLines, invCursorStyle.Render(row))
+		} else {
+			if m.inventory.Equipped[i].Name != "" {
+				row = fmt.Sprintf("   %-11s: [ %s ]", slot, m.inventory.Equipped[i].Name)
+			} else {
+				row = fmt.Sprintf("   %-11s: [ Empty ]", slot)
+			}
+			rightLines = append(rightLines, invItemStyle.Render(row))
+		}
 	}
 
 	// Pad to viewportH.

@@ -57,11 +57,13 @@ type Item struct {
 	Color string
 	Name  string
 	Count int
+	Slots []BodySlot // which body slots this item can occupy; empty = not equippable
 }
 
 // Inventory holds the player's carried items.
 type Inventory struct {
-	Items []Item
+	Items    []Item
+	Equipped [NumBodySlots]Item
 }
 
 // InventoryMaxSlots is the maximum number of distinct item stacks the player can carry.
@@ -169,3 +171,18 @@ const (
 	ScreenNormal    ScreenMode = iota // normal map/HUD view
 	ScreenInventory                   // fullscreen inventory overlay
 )
+
+// BodySlot identifies one of the six wearable slots on the player's body.
+type BodySlot int
+
+const (
+	SlotHead      BodySlot = iota
+	SlotChest
+	SlotLeftHand
+	SlotRightHand
+	SlotLegs
+	SlotFeet
+)
+
+// NumBodySlots is the total number of equipment slots.
+const NumBodySlots = 6

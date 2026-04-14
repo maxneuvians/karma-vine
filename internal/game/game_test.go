@@ -159,6 +159,70 @@ func TestModel_Update_TickMsg_TimeWraps(t *testing.T) {
 	}
 }
 
+// --- Pause tick tests ---
+
+func TestPause_TickMsg_NoTimeAdvance(t *testing.T) {
+	m := NewModel()
+	m.paused = true
+	m.timeOfDay = 0.5
+	m.timeScale = 2
+	next, cmd := m.Update(TickMsg{})
+	nm := next.(Model)
+	if nm.timeOfDay != 0.5 {
+		t.Errorf("paused TickMsg: timeOfDay = %v, want 0.5 (unchanged)", nm.timeOfDay)
+	}
+	if cmd == nil {
+		t.Fatal("paused TickMsg should return a non-nil reschedule command")
+	}
+}
+
+func TestPause_TickMsg_NoAnimalMovement(t *testing.T) {
+	m := NewModel()
+	m.paused = true
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.localMap.Animals = []*Animal{{X: 10, Y: 10, Char: 'd', Color: "#888", Flee: false}}
+	startX, startY := 10, 10
+	for i := 0; i < 10; i++ {
+		next, _ := m.Update(TickMsg{})
+		m = next.(Model)
+	}
+	a := m.localMap.Animals[0]
+	if a.X != startX || a.Y != startY {
+		t.Fatalf("paused animals moved: expected (%d,%d), got (%d,%d)", startX, startY, a.X, a.Y)
+	}
+}
+
+// --- Equipment tests ---
+
+func TestBodySlot_Constants(t *testing.T) {
+	if int(SlotFeet) != NumBodySlots-1 {
+		t.Fatalf("SlotFeet (%d) should equal NumBodySlots-1 (%d)", SlotFeet, NumBodySlots-1)
+	}
+}
+
+func TestNewModel_DefaultOutfit(t *testing.T) {
+	m := NewModel()
+	// Chest should have Cloth Tunic.
+	if m.inventory.Equipped[SlotChest].Name != "Cloth Tunic" {
+		t.Fatalf("expected Cloth Tunic in Chest, got %q", m.inventory.Equipped[SlotChest].Name)
+	}
+	// Legs should have Cloth Pants.
+	if m.inventory.Equipped[SlotLegs].Name != "Cloth Pants" {
+		t.Fatalf("expected Cloth Pants in Legs, got %q", m.inventory.Equipped[SlotLegs].Name)
+	}
+	// Feet should have Leather Boots.
+	if m.inventory.Equipped[SlotFeet].Name != "Leather Boots" {
+		t.Fatalf("expected Leather Boots in Feet, got %q", m.inventory.Equipped[SlotFeet].Name)
+	}
+	// These should NOT be in inventory.Items.
+	for _, item := range m.inventory.Items {
+		if item.Name == "Cloth Tunic" || item.Name == "Cloth Pants" || item.Name == "Leather Boots" {
+			t.Fatalf("default outfit item %q should not be in inventory.Items", item.Name)
+		}
+	}
+}
+
 // 7.1 New model has empty inventory.
 func TestNewModel_EmptyInventory(t *testing.T) {
 	m := NewModel()
