@@ -123,3 +123,14 @@ func TestDungeonMetaFor_Stable(t *testing.T) {
 		t.Fatalf("MaxDepth changed: %d vs %d", first.MaxDepth, second.MaxDepth)
 	}
 }
+
+func TestGenerateDungeonLevel_AllObjectsHaveNames(t *testing.T) {
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	for x := 0; x < DungeonW; x++ {
+		for y := 0; y < DungeonH; y++ {
+			if obj := level.Cells[x][y].Object; obj != nil && obj.Name == "" {
+				t.Fatalf("dungeon object '%c' at (%d,%d) has empty Name", obj.Char, x, y)
+			}
+		}
+	}
+}

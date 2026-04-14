@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -424,21 +425,6 @@ var biomeLegend = []legendEntry{
 	{'*', "#ccd9e0", "Snow"},
 }
 
-var localCharNames = map[rune]string{
-	'♣': "Tree",
-	'♠': "Pine",
-	'ψ': "Cactus",
-	'○': "Rock",
-	'⌂': "Shelter",
-	'✿': "Flower",
-	'd': "Deer",
-	'r': "Rabbit",
-	'b': "Bird",
-	's': "Snake",
-	'l': "Lizard",
-	'w': "Wolf",
-}
-
 // sbCell renders a colored icon + name padded to sidebarContentW.
 func sbCell(ch rune, color, name string) string {
 	icon := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(string(ch))
@@ -450,6 +436,13 @@ func sbText(s string) string {
 	return lipgloss.NewStyle().Width(sidebarContentW).Render(s)
 }
 
+// mapModeOverlayHints provides the sidebar header + hint for each non-default map mode.
+var mapModeOverlayHints = map[MapMode][2]string{
+	MapModeTemperature: {"Temperature", "blue=cold / red=hot"},
+	MapModeElevation:   {"Elevation", "blue=low / white=high"},
+	MapModePolitical:   {"Political", "contour lines"},
+}
+
 // renderSidebar builds a height-row sidebar with a trailing │ on each line.
 func renderSidebar(m Model, height int) string {
 	if height < 1 {
@@ -457,15 +450,27 @@ func renderSidebar(m Model, height int) string {
 	}
 
 	var lines []string
-	if m.mode == ModeWorld {
-		lines = append(lines,
-			sbText(sidebarHeaderStyle.Render(" Biomes")),
-			sbText(sidebarSubStyle.Render(" "+strings.Repeat("─", 18))),
-		)
-		for _, e := range biomeLegend {
-			lines = append(lines, sbCell(e.char, applyColor(e.color, dimFactor(m.timeOfDay)), e.name))
+
+	switch m.mode {
+	case ModeWorld:
+		if m.mapMode != MapModeDefault {
+			hint := mapModeOverlayHints[m.mapMode]
+			lines = append(lines,
+				sbText(sidebarHeaderStyle.Render(" "+hint[0])),
+				sbText(sidebarSubStyle.Render(" "+strings.Repeat("─", 18))),
+				sbText(sidebarSubStyle.Render(" "+hint[1])),
+			)
+		} else {
+			lines = append(lines,
+				sbText(sidebarHeaderStyle.Render(" Biomes")),
+				sbText(sidebarSubStyle.Render(" "+strings.Repeat("─", 18))),
+			)
+			for _, e := range biomeLegend {
+				lines = append(lines, sbCell(e.char, applyColor(e.color, dimFactor(m.timeOfDay)), e.name))
+			}
 		}
-	} else {
+
+	case ModeLocal:
 		lines = append(lines,
 			sbText(sidebarHeaderStyle.Render(" Legend")),
 			sbText(sidebarSubStyle.Render(" "+strings.Repeat("─", 18))),
@@ -481,14 +486,19 @@ func renderSidebar(m Model, height int) string {
 			type entry struct {
 				char  rune
 				color string
+				name  string
 			}
-			seenObj := make(map[entry]bool)
-			seenAni := make(map[entry]bool)
+			seenObj := make(map[string]entry)
+			seenAni := make(map[string]entry)
 			hasFire := false
 			for x := 0; x < LocalMapW; x++ {
 				for y := 0; y < LocalMapH; y++ {
 					if obj := lm.Objects[x][y]; obj != nil {
-						seenObj[entry{obj.Char, obj.Color}] = true
+						key := obj.Name
+						if key == "" {
+							key = string(obj.Char)
+						}
+						seenObj[key] = entry{obj.Char, obj.Color, obj.Name}
 					}
 					if lm.Ground[x][y].HasFire {
 						hasFire = true
@@ -496,15 +506,25 @@ func renderSidebar(m Model, height int) string {
 				}
 			}
 			for _, a := range lm.Animals {
-				seenAni[entry{a.Char, a.Color}] = true
+				key := a.Name
+				if key == "" {
+					key = string(a.Char)
+				}
+				seenAni[key] = entry{a.Char, a.Color, a.Name}
 			}
 			if hasFire {
 				lines = append(lines, sbCell('♨', "#ff8800", "Campfire"))
 			}
 			if len(seenObj) > 0 {
 				lines = append(lines, sbText(sidebarSubStyle.Render(" Objects")))
-				for e := range seenObj {
-					name := localCharNames[e.char]
+				objKeys := make([]string, 0, len(seenObj))
+				for k := range seenObj {
+					objKeys = append(objKeys, k)
+				}
+				sort.Strings(objKeys)
+				for _, k := range objKeys {
+					e := seenObj[k]
+					name := e.name
 					if name == "" {
 						name = string(e.char)
 					}
@@ -513,12 +533,61 @@ func renderSidebar(m Model, height int) string {
 			}
 			if len(seenAni) > 0 {
 				lines = append(lines, sbText(sidebarSubStyle.Render(" Wildlife")))
-				for e := range seenAni {
-					name := localCharNames[e.char]
+				aniKeys := make([]string, 0, len(seenAni))
+				for k := range seenAni {
+					aniKeys = append(aniKeys, k)
+				}
+				sort.Strings(aniKeys)
+				for _, k := range aniKeys {
+					e := seenAni[k]
+					name := e.name
 					if name == "" {
 						name = string(e.char)
 					}
 					lines = append(lines, sbCell(e.char, applyColor(e.color, dimFactor(m.timeOfDay)), name))
+				}
+			}
+		}
+
+	case ModeDungeon:
+		lines = append(lines,
+			sbText(sidebarHeaderStyle.Render(" Dungeon")),
+			sbText(sidebarSubStyle.Render(" "+strings.Repeat("─", 18))),
+			sbText(fmt.Sprintf(" Depth: %d", m.dungeonDepth)),
+			sbCell('@', "#f0f6fc", "You"),
+		)
+		if m.currentDungeon != nil {
+			type entry struct {
+				char  rune
+				color string
+				name  string
+			}
+			seen := make(map[string]entry)
+			for x := 0; x < DungeonW; x++ {
+				for y := 0; y < DungeonH; y++ {
+					if obj := m.currentDungeon.Cells[x][y].Object; obj != nil {
+						key := obj.Name
+						if key == "" {
+							key = string(obj.Char)
+						}
+						seen[key] = entry{obj.Char, obj.Color, obj.Name}
+					}
+				}
+			}
+			if len(seen) > 0 {
+				lines = append(lines, sbText(sidebarSubStyle.Render(" Contents")))
+				seenKeys := make([]string, 0, len(seen))
+				for k := range seen {
+					seenKeys = append(seenKeys, k)
+				}
+				sort.Strings(seenKeys)
+				for _, k := range seenKeys {
+					e := seen[k]
+					name := e.name
+					if name == "" {
+						name = string(e.char)
+					}
+					lines = append(lines, sbCell(e.char, e.color, name))
 				}
 			}
 		}

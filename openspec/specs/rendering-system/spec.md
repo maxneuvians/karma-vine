@@ -85,6 +85,17 @@ The system SHALL extend `buildView` to dispatch to `renderDungeonMap` when `m.mo
 - **WHEN** `buildView` is called with `m.mode == ModeDungeon`
 - **THEN** the returned string contains the HUD status bar with dungeon depth information
 
+### Requirement: renderSidebar dispatches on active mode
+The system SHALL update `renderSidebar` to switch on `m.mode`, rendering world content for `ModeWorld`, local content for `ModeLocal`, and dungeon content for `ModeDungeon`. The `localCharNames` lookup map SHALL be removed; object and animal names SHALL be read directly from `obj.Name` and `a.Name`.
+
+#### Scenario: renderSidebar called in ModeDungeon returns dungeon content
+- **WHEN** `renderSidebar` is called with `m.mode == ModeDungeon`
+- **THEN** the returned string contains `Dungeon` and `Depth:`
+
+#### Scenario: renderSidebar called in ModeLocal uses Name field
+- **WHEN** `renderSidebar` is called with `m.mode == ModeLocal` and an object has `Name: "Dungeon Entrance"`
+- **THEN** the returned string contains `Dungeon Entrance`
+
 ### Requirement: Viewport dimensions update on window resize
 The system SHALL handle `tea.WindowSizeMsg` in `Update()`, storing `msg.Width` in `viewportW` and `msg.Height` in `viewportH`. The next `View()` call SHALL use the updated dimensions.
 

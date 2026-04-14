@@ -31,12 +31,14 @@ type objectEntry struct {
 	Char     rune
 	Color    string
 	Blocking bool
+	Name     string
 }
 
 type animalEntry struct {
 	Char  rune
 	Color string
 	Flee  bool
+	Name  string
 }
 
 type biomeContent struct {
@@ -57,12 +59,12 @@ var biomeTable = map[Biome]biomeContent{
 			{';', "#6cbf50", true},
 		},
 		objects: []objectEntry{
-			{'♣', "#2d7a1f", true},
-			{'♠', "#3d6b3a", true},
+			{'♣', "#2d7a1f", true, "Tree"},
+			{'♠', "#3d6b3a", true, "Pine"},
 		},
 		animals: []animalEntry{
-			{'d', "#8B4513", true},
-			{'r', "#aaaaaa", true},
+			{'d', "#8B4513", true, "Deer"},
+			{'r', "#aaaaaa", true, "Rabbit"},
 		},
 		objectThreshold: 0.40,
 		maxAnimals:      3,
@@ -74,12 +76,12 @@ var biomeTable = map[Biome]biomeContent{
 			{'·', "#baa060", true},
 		},
 		objects: []objectEntry{
-			{'ψ', "#5aad3f", true},
-			{'○', "#8fa89c", true},
+			{'ψ', "#5aad3f", true, "Cactus"},
+			{'○', "#8fa89c", true, "Rock"},
 		},
 		animals: []animalEntry{
-			{'s', "#c8a46a", false},
-			{'l', "#5aad3f", false},
+			{'s', "#c8a46a", false, "Snake"},
+			{'l', "#5aad3f", false, "Lizard"},
 		},
 		objectThreshold: 0.50,
 		maxAnimals:      2,
@@ -92,12 +94,12 @@ var biomeTable = map[Biome]biomeContent{
 			{';', "#88d96c", true},
 		},
 		objects: []objectEntry{
-			{'⌂', "#7bc96f", false},
-			{'✿', "#f0d060", false},
+			{'⌂', "#7bc96f", false, "Shelter"},
+			{'✿', "#f0d060", false, "Flower"},
 		},
 		animals: []animalEntry{
-			{'r', "#aaaaaa", true},
-			{'b', "#2e9ecf", true},
+			{'r', "#aaaaaa", true, "Rabbit"},
+			{'b', "#2e9ecf", true, "Bird"},
 		},
 		objectThreshold: 0.65,
 		maxAnimals:      4,		fireThreshold:   0.90,	},
@@ -108,12 +110,12 @@ var biomeTable = map[Biome]biomeContent{
 			{'\'', "#4a7a44", true},
 		},
 		objects: []objectEntry{
-			{'♠', "#3d6b3a", true},
-			{'♣', "#2d7a1f", true},
+			{'♠', "#3d6b3a", true, "Pine"},
+			{'♣', "#2d7a1f", true, "Tree"},
 		},
 		animals: []animalEntry{
-			{'d', "#8B4513", true},
-			{'w', "#555555", false},
+			{'d', "#8B4513", true, "Deer"},
+			{'w', "#555555", false, "Wolf"},
 		},
 		objectThreshold: 0.30,
 		maxAnimals:      2,
@@ -125,12 +127,12 @@ var biomeTable = map[Biome]biomeContent{
 			{'°', "#6a8480", true},
 		},
 		objects: []objectEntry{
-			{'◉', "#8fa89c", true},
-			{'▲', "#4a6060", true},
+			{'◉', "#8fa89c", true, "Boulder"},
+			{'▲', "#4a6060", true, "Peak"},
 		},
 		animals: []animalEntry{
-			{'g', "#dddddd", true},
-			{'e', "#8B4513", true},
+			{'g', "#dddddd", true, "Goat"},
+			{'e', "#8B4513", true, "Eagle"},
 		},
 		objectThreshold: 0.50,
 		maxAnimals:      2,
@@ -144,12 +146,12 @@ var biomeTable = map[Biome]biomeContent{
 			{'°', "#e0ecf4", true},
 		},
 		objects: []objectEntry{
-			{'◆', "#ccd9e0", true},
-			{'❄', "#ffffff", false},
+			{'◆', "#ccd9e0", true, "Ice Rock"},
+			{'❄', "#ffffff", false, "Snowflake"},
 		},
 		animals: []animalEntry{
-			{'B', "#eeeeee", false},
-			{'r', "#ffffff", true},
+			{'B', "#eeeeee", false, "Bear"},
+			{'r', "#ffffff", true, "Rabbit"},
 		},
 		objectThreshold: 0.55,
 		maxAnimals:      2,
@@ -161,12 +163,12 @@ var biomeTable = map[Biome]biomeContent{
 			{',', "#f0d47a", true},
 		},
 		objects: []objectEntry{
-			{'○', "#c8a46a", false},
-			{'⊙', "#e8c96a", false},
+			{'○', "#c8a46a", false, "Shell"},
+			{'⊙', "#e8c96a", false, "Pebble"},
 		},
 		animals: []animalEntry{
-			{'c', "#c0392b", true},
-			{'s', "#ffffff", true},
+			{'c', "#c0392b", true, "Crab"},
+			{'s', "#ffffff", true, "Seagull"},
 		},
 		objectThreshold: 0.65,
 		maxAnimals:      3,
@@ -180,12 +182,12 @@ var biomeTable = map[Biome]biomeContent{
 			{';', "#2a9940", true},
 		},
 		objects: []objectEntry{
-			{'♣', "#1a7a2e", true},
-			{'♠', "#145520", true},
+			{'♣', "#1a7a2e", true, "Tree"},
+			{'♠', "#145520", true, "Pine"},
 		},
 		animals: []animalEntry{
-			{'b', "#2e9ecf", true},
-			{'s', "#228b38", false},
+			{'b', "#2e9ecf", true, "Bird"},
+			{'s', "#228b38", false, "Snake"},
 		},
 		objectThreshold: 0.28,
 		maxAnimals:      4,
@@ -198,12 +200,12 @@ var biomeTable = map[Biome]biomeContent{
 			{';', "#cabb60", true},
 		},
 		objects: []objectEntry{
-			{'♣', "#8b6914", true},
-			{'○', "#8fa89c", false},
+			{'♣', "#8b6914", true, "Acacia"},
+			{'○', "#8fa89c", false, "Rock"},
 		},
 		animals: []animalEntry{
-			{'d', "#c8a020", true},
-			{'b', "#c0a030", true},
+			{'d', "#c8a020", true, "Antelope"},
+			{'b', "#c0a030", true, "Bird"},
 		},
 		objectThreshold: 0.60,
 		maxAnimals:      4,
@@ -216,12 +218,12 @@ var biomeTable = map[Biome]biomeContent{
 			{',', "#d4b484", true},
 		},
 		objects: []objectEntry{
-			{'○', "#8fa89c", false},
-			{'ψ', "#7a9060", true},
+			{'○', "#8fa89c", false, "Rock"},
+			{'ψ', "#7a9060", true, "Scrub"},
 		},
 		animals: []animalEntry{
-			{'l', "#c9a97a", false},
-			{'s', "#d4a060", false},
+			{'l', "#c9a97a", false, "Lizard"},
+			{'s', "#d4a060", false, "Snake"},
 		},
 		objectThreshold: 0.62,
 		maxAnimals:      2,
@@ -234,12 +236,12 @@ var biomeTable = map[Biome]biomeContent{
 			{'°', "#6a8e6a", true},
 		},
 		objects: []objectEntry{
-			{'○', "#8fa89c", false},
-			{'◆', "#a0b8a0", false},
+			{'○', "#8fa89c", false, "Rock"},
+			{'◆', "#a0b8a0", false, "Stone"},
 		},
 		animals: []animalEntry{
-			{'r', "#dddddd", true},
-			{'B', "#dddddd", false},
+			{'r', "#dddddd", true, "Rabbit"},
+			{'B', "#dddddd", false, "Bear"},
 		},
 		objectThreshold: 0.68,
 		maxAnimals:      2,
@@ -251,12 +253,12 @@ var biomeTable = map[Biome]biomeContent{
 			{'\'', "#457a60", true},
 		},
 		objects: []objectEntry{
-			{'♠', "#3a6b52", true},
-			{'♣', "#2d5a40", true},
+			{'♠', "#3a6b52", true, "Pine"},
+			{'♣', "#2d5a40", true, "Tree"},
 		},
 		animals: []animalEntry{
-			{'w', "#888888", false},
-			{'d', "#8B4513", true},
+			{'w', "#888888", false, "Wolf"},
+			{'d', "#8B4513", true, "Deer"},
 		},
 		objectThreshold: 0.35,
 		maxAnimals:      2,
@@ -318,7 +320,7 @@ func GenerateLocalMap(worldX, worldY, globalSeed int, biome Biome) *LocalMap {
 			// 4.5 Place object if noise exceeds threshold (fire cells skip objects)
 			if !hasFire && len(content.objects) > 0 && on > content.objectThreshold {
 				oe := content.objects[rng.Intn(len(content.objects))]
-				lm.Objects[x][y] = &Object{Char: oe.Char, Color: oe.Color, Blocking: oe.Blocking}
+				lm.Objects[x][y] = &Object{Char: oe.Char, Color: oe.Color, Blocking: oe.Blocking, Name: oe.Name}
 			}
 		}
 	}
@@ -350,6 +352,7 @@ func GenerateLocalMap(worldX, worldY, globalSeed int, biome Biome) *LocalMap {
 				Char:  ae.Char,
 				Color: ae.Color,
 				Flee:  ae.Flee,
+				Name:  ae.Name,
 			})
 		}
 	}
@@ -367,7 +370,7 @@ func GenerateLocalMap(worldX, worldY, globalSeed int, biome Biome) *LocalMap {
 		}
 		if len(candidates) > 0 {
 			p := candidates[rng.Intn(len(candidates))]
-			lm.Objects[p.x][p.y] = &Object{Char: '>', Color: "#ff3333", Blocking: false}
+			lm.Objects[p.x][p.y] = &Object{Char: '>', Color: "#ff3333", Blocking: false, Name: "Dungeon Entrance"}
 		}
 	}
 

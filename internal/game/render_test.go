@@ -847,3 +847,48 @@ func TestComputeDungeonVisibility_TorchIlluminates(t *testing.T) {
 	}
 }
 
+// ── sidebar contextual tests ──────────────────────────────────────────────────
+
+func TestRenderSidebar_LocalShowsDungeonEntrance(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.viewportW = 80
+	m.viewportH = 26
+	lm := &LocalMap{}
+	lm.Objects[10][10] = &Object{Char: '>', Color: "#ff3333", Blocking: false, Name: "Dungeon Entrance"}
+	m.localMap = lm
+	out := renderSidebar(m, 20)
+	if !strings.Contains(out, "Dungeon Entrance") {
+		t.Errorf("local sidebar should contain 'Dungeon Entrance', got:\n%s", out)
+	}
+}
+
+func TestRenderSidebar_DungeonShowsDepth(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	m.dungeonDepth = 1
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	m.currentDungeon = level
+	m.playerPos = level.UpStair
+	out := renderSidebar(m, 20)
+	if !strings.Contains(out, "Dungeon") {
+		t.Errorf("dungeon sidebar should contain 'Dungeon', got:\n%s", out)
+	}
+	if !strings.Contains(out, "Depth: 1") {
+		t.Errorf("dungeon sidebar should contain 'Depth: 1', got:\n%s", out)
+	}
+}
+
+func TestRenderSidebar_WorldTemperatureMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.mapMode = MapModeTemperature
+	out := renderSidebar(m, 20)
+	if !strings.Contains(out, "Temperature") {
+		t.Errorf("world sidebar in temperature mode should contain 'Temperature', got:\n%s", out)
+	}
+	if strings.Contains(out, "Deep Ocean") {
+		t.Error("world sidebar in temperature mode should not contain biome legend")
+	}
+}
+

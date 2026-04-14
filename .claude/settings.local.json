@@ -2,12 +2,9 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(openspec list:*)",
-      "Bash(openspec status:*)",
+      "Bash(openspec *)",
       "Bash(go build:*)",
-      "Bash(go test:*)",
-      "Bash(openspec instructions:*)",
-      "Bash(openspec --help)"
+      "Bash(go test:*)"
     ]
   }
 }

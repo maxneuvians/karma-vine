@@ -149,7 +149,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 	upX := rooms[0].cx
 	upY := rooms[0].cy
 	level.UpStair = LocalCoord{X: upX, Y: upY}
-	level.Cells[upX][upY].Object = &Object{Char: '<', Color: "#e8c96a", Blocking: false}
+	level.Cells[upX][upY].Object = &Object{Char: '<', Color: "#e8c96a", Blocking: false, Name: "Staircase Up"}
 
 	// Place down-staircase in a different room if not final level.
 	if depth < maxDepth && len(rooms) > 1 {
@@ -158,7 +158,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 		downY := downRoom.cy
 		level.DownStair = LocalCoord{X: downX, Y: downY}
 		level.HasDownStair = true
-		level.Cells[downX][downY].Object = &Object{Char: '>', Color: "#e8c96a", Blocking: false}
+		level.Cells[downX][downY].Object = &Object{Char: '>', Color: "#e8c96a", Blocking: false, Name: "Staircase Down"}
 	}
 
 	// Place torches on wall cells adjacent to floor cells (~1 per 5 rooms).
@@ -172,7 +172,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 	})
 	for i := 0; i < torchCount && i < len(wallAdjacentFloor); i++ {
 		p := wallAdjacentFloor[i]
-		level.Cells[p.X][p.Y].Object = &Object{Char: '†', Color: "#e8c96a", Blocking: true}
+		level.Cells[p.X][p.Y].Object = &Object{Char: '†', Color: "#e8c96a", Blocking: true, Name: "Torch"}
 	}
 
 	// Place braziers on floor cells inside rooms (~1 per 6 rooms).
@@ -193,7 +193,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 		if level.Cells[p.X][p.Y].Object != nil {
 			continue
 		}
-		level.Cells[p.X][p.Y].Object = &Object{Char: 'Ω', Color: "#e07030", Blocking: false}
+		level.Cells[p.X][p.Y].Object = &Object{Char: 'Ω', Color: "#e07030", Blocking: false, Name: "Brazier"}
 		placed++
 	}
 

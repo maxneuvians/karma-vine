@@ -46,7 +46,8 @@ type Object struct {
 	Char     rune
 	Color    string
 	Blocking bool
-	Lit      bool // true when the object emits light (torches/braziers in dungeons)
+	Lit      bool   // true when the object emits light (torches/braziers in dungeons)
+	Name     string // human-readable label (e.g. "Tree", "Torch")
 }
 
 // Animal is a creature on the local map.
@@ -55,6 +56,7 @@ type Animal struct {
 	Char  rune
 	Color string
 	Flee  bool
+	Name  string // human-readable label (e.g. "Deer", "Wolf")
 }
 
 // LocalMapW and LocalMapH are the dimensions of the local exploration grid.

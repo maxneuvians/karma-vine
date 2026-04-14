@@ -1,16 +1,4 @@
-## Requirements
-
-### Requirement: Dungeon types are defined
-The system SHALL define the following types in `internal/game/types.go`:
-- `CellKind int` with constants `CellWall`, `CellFloor`
-- `DungeonCell struct { Kind CellKind; Object *Object }` — a single grid cell
-- `DungeonLevel struct { Cells [DungeonW][DungeonH]DungeonCell; UpStair LocalCoord; DownStair LocalCoord; HasDownStair bool }` — one dungeon floor
-- `dungeonKey struct { wx, wy, depth int }` — cache key
-- Constants `DungeonW = 80`, `DungeonH = 24`
-
-#### Scenario: DungeonLevel zero-value is safe
-- **WHEN** a `DungeonLevel` is allocated with `&DungeonLevel{}`
-- **THEN** all `Cells` default to `CellWall` (zero value) without panicking
+## MODIFIED Requirements
 
 ### Requirement: GenerateDungeonLevel produces a valid level
 The system SHALL implement `GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel` that:
@@ -50,25 +38,3 @@ The system SHALL implement `GenerateDungeonLevel(globalSeed, wx, wy, depth, maxD
 #### Scenario: No dungeon object has an empty Name
 - **WHEN** `GenerateDungeonLevel` is called
 - **THEN** every non-nil `Object` in any `DungeonCell` has a non-empty `Name`
-
-### Requirement: DungeonMeta stores per-entrance max depth
-The system SHALL define `DungeonMeta struct { MaxDepth int }` and store one per world coordinate in `Model.dungeonMeta map[WorldCoord]DungeonMeta`. When first generating a dungeon for a world tile, the system SHALL randomise `MaxDepth` in `[5, 10]` using the global seed.
-
-#### Scenario: MaxDepth is in range [5, 10]
-- **WHEN** a `DungeonMeta` is created for a new world tile
-- **THEN** `meta.MaxDepth >= 5 && meta.MaxDepth <= 10`
-
-#### Scenario: MaxDepth is stable across re-entries
-- **WHEN** the player enters a dungeon, ascends, and enters again
-- **THEN** the same `MaxDepth` is used (looked up from `dungeonMeta`, not re-randomised)
-
-### Requirement: DungeonLevelFor accessor caches levels
-The system SHALL provide `DungeonLevelFor(wx, wy, depth int, m *Model) *DungeonLevel` that looks up `m.dungeonCache`, calls `GenerateDungeonLevel` only on a cache miss, stores the result, and returns it.
-
-#### Scenario: Cache miss triggers generation
-- **WHEN** `DungeonLevelFor` is called for a key not in `m.dungeonCache`
-- **THEN** a new `DungeonLevel` is generated, stored, and returned
-
-#### Scenario: Cache hit returns same instance
-- **WHEN** `DungeonLevelFor` is called twice for the same `(wx, wy, depth)`
-- **THEN** both calls return a pointer to the same `DungeonLevel`

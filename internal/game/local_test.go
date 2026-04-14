@@ -181,3 +181,46 @@ func TestGenerateLocalMap_DungeonEntranceNoOverlap(t *testing.T) {
 	}
 }
 
+// --- Object and Animal name tests ---
+
+func TestGenerateLocalMap_AllObjectsHaveNames(t *testing.T) {
+	biomes := []Biome{Forest, Desert, Plains, Mountains, Snow, Beach, Jungle, Savanna}
+	for _, b := range biomes {
+		lm := GenerateLocalMap(0, 0, 42, b)
+		for x := 0; x < LocalMapW; x++ {
+			for y := 0; y < LocalMapH; y++ {
+				if obj := lm.Objects[x][y]; obj != nil && obj.Name == "" {
+					t.Fatalf("biome %d: object '%c' at (%d,%d) has empty Name", b, obj.Char, x, y)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerateLocalMap_AllAnimalsHaveNames(t *testing.T) {
+	biomes := []Biome{Forest, Desert, Plains, Mountains, Snow, Beach, Jungle, Savanna}
+	for _, b := range biomes {
+		lm := GenerateLocalMap(0, 0, 42, b)
+		for _, a := range lm.Animals {
+			if a.Name == "" {
+				t.Fatalf("biome %d: animal '%c' has empty Name", b, a.Char)
+			}
+		}
+	}
+}
+
+func TestGenerateLocalMap_DungeonEntranceHasName(t *testing.T) {
+	lm := GenerateLocalMap(0, 0, 42, Forest)
+	for x := 0; x < LocalMapW; x++ {
+		for y := 0; y < LocalMapH; y++ {
+			if obj := lm.Objects[x][y]; obj != nil && obj.Char == '>' {
+				if obj.Name != "Dungeon Entrance" {
+					t.Fatalf("dungeon entrance Name = %q, want \"Dungeon Entrance\"", obj.Name)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("no dungeon entrance found")
+}
+
