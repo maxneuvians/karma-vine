@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ── Initiative order ─────────────────────────────────────────────────────────
@@ -216,5 +217,72 @@ func TestBuildDungeonEnemyCombatant(t *testing.T) {
 	}
 	if c.Initiative != 5 {
 		t.Fatalf("expected Initiative 5, got %d", c.Initiative)
+	}
+}
+
+// ── Combat speed duration tests ─────────────────────────────────────────────
+
+func TestCombatSpeedDuration_Slow(t *testing.T) {
+	if d := combatSpeedDuration(CombatSpeedSlow); d != 3*time.Second {
+		t.Fatalf("expected 3s, got %v", d)
+	}
+}
+
+func TestCombatSpeedDuration_Fast(t *testing.T) {
+	if d := combatSpeedDuration(CombatSpeedFast); d != 200*time.Millisecond {
+		t.Fatalf("expected 200ms, got %v", d)
+	}
+}
+
+func TestCombatSpeedDuration_OutOfRange(t *testing.T) {
+	if d := combatSpeedDuration(99); d != 1*time.Second {
+		t.Fatalf("expected 1s, got %v", d)
+	}
+}
+
+// ── Combat log grouping tests ───────────────────────────────────────────────
+
+func TestCombatLogLinesUpTo_ReturnsRound1Only(t *testing.T) {
+	log := []string{
+		"Round 1: Player attacks Wolf for 3 damage (9 HP left)",
+		"Round 1: Wolf attacks Player for 2 damage (18 HP left)",
+		"Round 2: Player attacks Wolf for 4 damage (5 HP left)",
+		"Round 2: Wolf attacks Player for 1 damage (17 HP left)",
+	}
+	result := combatLogLinesUpTo(log, 1)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 lines for round 1, got %d: %v", len(result), result)
+	}
+}
+
+func TestCombatLogLinesUpTo_ZeroIndex(t *testing.T) {
+	log := []string{
+		"Round 1: Player attacks Wolf for 3 damage (9 HP left)",
+	}
+	result := combatLogLinesUpTo(log, 0)
+	if len(result) != 0 {
+		t.Fatalf("expected 0 lines for roundIndex=0, got %d", len(result))
+	}
+}
+
+// ── hpAtRound tests ─────────────────────────────────────────────────────────
+
+func TestHpAtRound_NoDamage(t *testing.T) {
+	log := []string{
+		"Round 1: Player attacks Wolf for 3 damage (9 HP left)",
+	}
+	hp := hpAtRound(20, log, 1, "Player")
+	if hp != 20 {
+		t.Fatalf("expected 20 (no damage to Player), got %d", hp)
+	}
+}
+
+func TestHpAtRound_TakesOneDamage(t *testing.T) {
+	log := []string{
+		"Round 1: Wolf attacks Hero for 5 damage (15 HP left)",
+	}
+	hp := hpAtRound(20, log, 1, "Hero")
+	if hp != 15 {
+		t.Fatalf("expected 15, got %d", hp)
 	}
 }

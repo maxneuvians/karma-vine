@@ -2,6 +2,7 @@ package game
 
 import (
 	"math/rand"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -83,6 +84,12 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "]":
+			m.combatSpeed = min(CombatSpeedFast, m.combatSpeed+1)
+			return m, nil
+		case "[":
+			m.combatSpeed = max(CombatSpeedSlow, m.combatSpeed-1)
+			return m, nil
 		}
 		return m, nil
 	}
@@ -294,8 +301,9 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 					m.combatState = &state
 					m.combatEnemy = a
 					m.screenMode = ScreenCombat
+					m.combatLogIndex = 0
 					m.paused = true
-					return m, nil
+					return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
 				}
 			}
 		}
@@ -326,6 +334,10 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			m.mode = ModeWorld
 			// Do NOT nil-out m.localMap — it stays in localCache
 		}
+	}
+	// If movement triggered combat, schedule the first combat tick.
+	if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 {
+		return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
 	}
 	return m, nil
 }
@@ -440,6 +452,7 @@ func applyDelta(dx, dy int, m Model) Model {
 				m.combatState = &state
 				m.combatDungeonEnemy = e
 				m.screenMode = ScreenCombat
+				m.combatLogIndex = 0
 				m.paused = true
 				return m
 			}
@@ -904,6 +917,10 @@ func handleMouseClick(msg tea.MouseClickMsg, m Model) (Model, tea.Cmd) {
 	}
 
 	m = applyDelta(stepX, stepY, m)
+	// If movement triggered combat, schedule the first combat tick.
+	if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 {
+		return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
+	}
 	return m, nil
 }
 

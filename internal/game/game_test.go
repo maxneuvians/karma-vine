@@ -253,3 +253,70 @@ func TestNewModel_PlayerHP(t *testing.T) {
 	}
 }
 
+// ── Combat playback model tests ─────────────────────────────────────────────
+
+func TestNewModel_CombatSpeed(t *testing.T) {
+	m := NewModel()
+	if m.combatSpeed != CombatSpeedNormal {
+		t.Fatalf("expected combatSpeed == CombatSpeedNormal (%d), got %d", CombatSpeedNormal, m.combatSpeed)
+	}
+}
+
+func TestCombatTickMsg_AdvancesIndex(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatLogIndex = 2
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 15, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 5, MaxHP: 12},
+		Round:  5,
+	}
+	result, cmd := m.Update(CombatTickMsg{})
+	rm := result.(Model)
+	if rm.combatLogIndex != 3 {
+		t.Fatalf("expected combatLogIndex 3, got %d", rm.combatLogIndex)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd for next tick")
+	}
+}
+
+func TestCombatTickMsg_NoAdvancePastFinal(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatLogIndex = 3
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 15, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 0, MaxHP: 12},
+		Round:  3,
+	}
+	result, cmd := m.Update(CombatTickMsg{})
+	rm := result.(Model)
+	if rm.combatLogIndex != 3 {
+		t.Fatalf("expected combatLogIndex unchanged at 3, got %d", rm.combatLogIndex)
+	}
+	if cmd != nil {
+		t.Fatal("expected nil cmd when playback complete")
+	}
+}
+
+func TestCombatTickMsg_NoopOutsideCombat(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenNormal
+	m.combatLogIndex = 2
+	result, cmd := m.Update(CombatTickMsg{})
+	rm := result.(Model)
+	if rm.combatLogIndex != 2 {
+		t.Fatalf("expected combatLogIndex unchanged at 2, got %d", rm.combatLogIndex)
+	}
+	if cmd != nil {
+		t.Fatal("expected nil cmd outside combat")
+	}
+}
+

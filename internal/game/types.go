@@ -3,6 +3,16 @@ package game
 // TickMsg is dispatched by the BubbleTea tick loop every 500 ms.
 type TickMsg struct{}
 
+// CombatTickMsg is dispatched by the combat playback tick loop.
+type CombatTickMsg struct{}
+
+// Combat playback speed constants.
+const (
+	CombatSpeedSlow   = 0
+	CombatSpeedNormal = 1
+	CombatSpeedFast   = 2
+)
+
 // Biome identifies one of the fourteen biome types.
 type Biome int
 
@@ -206,12 +216,14 @@ type RoundHook func(self, opponent *Combatant)
 
 // CombatState holds the full result of a resolved combat encounter.
 type CombatState struct {
-	Player    Combatant
-	Enemy     Combatant
-	Hooks     []RoundHook
-	Log       []string
-	Round     int
-	PlayerWon bool
+	Player       Combatant
+	Enemy        Combatant
+	Hooks        []RoundHook
+	Log          []string
+	Round        int
+	PlayerWon    bool
+	PlayerStartHP int // HP player had at the start of this combat
+	EnemyStartHP  int // HP enemy had at the start of this combat
 }
 
 // LootEntry is a single weighted item in an enemy's loot table.

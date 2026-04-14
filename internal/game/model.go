@@ -40,6 +40,8 @@ type Model struct {
 	combatState        *CombatState
 	combatEnemy        *Animal
 	combatDungeonEnemy *DungeonEnemy
+	combatLogIndex     int
+	combatSpeed        int
 
 	// Player stats
 	playerHP    int
@@ -88,6 +90,7 @@ func NewModel() Model {
 		timeOfDay:    0.25, // start at 6 AM
 		timeScale:    1,
 		worldZoom:    1,
+		combatSpeed:  CombatSpeedNormal,
 	}
 	m.worldPos = findWorldSpawn(&m)
 	return m
@@ -128,7 +131,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == ModeDungeon {
 			m = moveEnemies(m)
 		}
+		if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 {
+			return m, tea.Batch(tickCmd(), tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} }))
+		}
 		return m, tickCmd()
+	case CombatTickMsg:
+		if m.screenMode != ScreenCombat {
+			return m, nil
+		}
+		if m.combatState != nil && m.combatLogIndex < m.combatState.Round {
+			m.combatLogIndex++
+			return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
+		}
+		return m, nil
 	}
 	return m, nil
 }

@@ -3,7 +3,23 @@ package game
 import (
 	"fmt"
 	"math/rand"
+	"strings"
+	"time"
 )
+
+// combatSpeedDuration returns the tick interval for a given combat playback speed.
+func combatSpeedDuration(speed int) time.Duration {
+	switch speed {
+	case CombatSpeedSlow:
+		return 3 * time.Second
+	case CombatSpeedNormal:
+		return 1 * time.Second
+	case CombatSpeedFast:
+		return 200 * time.Millisecond
+	default:
+		return 1 * time.Second
+	}
+}
 
 // ── Animal combat stats ─────────────────────────────────────────────────────
 
@@ -96,9 +112,11 @@ func resolveCombat(player, enemy Combatant, hooks []RoundHook, rng *rand.Rand) C
 	e := enemy
 
 	state := CombatState{
-		Player: p,
-		Enemy:  e,
-		Hooks:  hooks,
+		Player:        p,
+		Enemy:         e,
+		Hooks:         hooks,
+		PlayerStartHP: p.HP,
+		EnemyStartHP:  e.HP,
 	}
 
 	// Determine initiative order: higher goes first; ties favour player.
@@ -177,4 +195,62 @@ func rollDamage(attacker, defender *Combatant, rng *rand.Rand) int {
 		damage = 0
 	}
 	return damage
+}
+
+// combatLogLinesUpTo returns log lines up to (but not including) the (roundIndex+1)-th
+// distinct round boundary. roundIndex=0 returns empty; roundIndex=1 returns round 1 lines, etc.
+func combatLogLinesUpTo(log []string, roundIndex int) []string {
+	if roundIndex <= 0 {
+		return nil
+	}
+	distinctRounds := 0
+	lastRoundPrefix := ""
+	for i, line := range log {
+		if strings.HasPrefix(line, "Round ") {
+			// Extract round prefix e.g. "Round 1:" to detect distinct rounds.
+			colonIdx := strings.Index(line, ":")
+			var prefix string
+			if colonIdx > 0 {
+				prefix = line[:colonIdx]
+			} else {
+				prefix = line
+			}
+			if prefix != lastRoundPrefix {
+				distinctRounds++
+				lastRoundPrefix = prefix
+				if distinctRounds > roundIndex {
+					return log[:i]
+				}
+			}
+		}
+	}
+	return log
+}
+
+// hpAtRound computes a combatant's HP after damage through the given round index.
+func hpAtRound(startHP int, log []string, roundIndex int, combatantName string) int {
+	visible := combatLogLinesUpTo(log, roundIndex)
+	hp := startHP
+	// Log format: "Round N: <attacker> attacks <target> for D damage (H HP left)"
+	needle := "attacks " + combatantName + " for "
+	for _, line := range visible {
+		idx := strings.Index(line, needle)
+		if idx < 0 {
+			continue
+		}
+		rest := line[idx+len(needle):]
+		n := 0
+		for _, c := range rest {
+			if c >= '0' && c <= '9' {
+				n = n*10 + int(c-'0')
+			} else {
+				break
+			}
+		}
+		hp -= n
+	}
+	if hp < 0 {
+		hp = 0
+	}
+	return hp
 }

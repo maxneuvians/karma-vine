@@ -1450,3 +1450,49 @@ func TestDungeonMeta_BiomeRecorded(t *testing.T) {
 		t.Fatalf("expected biome %d, got %d", tile.Biome, meta.Biome)
 	}
 }
+
+// ── Combat speed key tests ──────────────────────────────────────────────────
+
+func TestHandleKey_BracketIncreasesSpeed(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatSpeed = CombatSpeedSlow
+	m.combatState = &CombatState{Player: Combatant{Name: "Player", HP: 15, MaxHP: 20}, Enemy: Combatant{Name: "Wolf", HP: 8, MaxHP: 12}}
+	result, _ := handleKey(tea.KeyPressMsg{Code: -1, Text: "]"}, m)
+	if result.combatSpeed != CombatSpeedNormal {
+		t.Fatalf("expected combatSpeed %d, got %d", CombatSpeedNormal, result.combatSpeed)
+	}
+}
+
+func TestHandleKey_BracketClampsFast(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatSpeed = CombatSpeedFast
+	m.combatState = &CombatState{Player: Combatant{Name: "Player", HP: 15, MaxHP: 20}, Enemy: Combatant{Name: "Wolf", HP: 8, MaxHP: 12}}
+	result, _ := handleKey(tea.KeyPressMsg{Code: -1, Text: "]"}, m)
+	if result.combatSpeed != CombatSpeedFast {
+		t.Fatalf("expected combatSpeed %d, got %d", CombatSpeedFast, result.combatSpeed)
+	}
+}
+
+func TestHandleKey_LeftBracketDecreasesSpeed(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatSpeed = CombatSpeedFast
+	m.combatState = &CombatState{Player: Combatant{Name: "Player", HP: 15, MaxHP: 20}, Enemy: Combatant{Name: "Wolf", HP: 8, MaxHP: 12}}
+	result, _ := handleKey(tea.KeyPressMsg{Code: -1, Text: "["}, m)
+	if result.combatSpeed != CombatSpeedNormal {
+		t.Fatalf("expected combatSpeed %d, got %d", CombatSpeedNormal, result.combatSpeed)
+	}
+}
+
+func TestHandleKey_LeftBracketClampsSlow(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatSpeed = CombatSpeedSlow
+	m.combatState = &CombatState{Player: Combatant{Name: "Player", HP: 15, MaxHP: 20}, Enemy: Combatant{Name: "Wolf", HP: 8, MaxHP: 12}}
+	result, _ := handleKey(tea.KeyPressMsg{Code: -1, Text: "["}, m)
+	if result.combatSpeed != CombatSpeedSlow {
+		t.Fatalf("expected combatSpeed %d, got %d", CombatSpeedSlow, result.combatSpeed)
+	}
+}

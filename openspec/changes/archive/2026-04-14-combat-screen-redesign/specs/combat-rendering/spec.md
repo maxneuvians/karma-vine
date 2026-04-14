@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: ScreenCombat renders a fullscreen combat view
 When `m.screenMode == ScreenCombat`, `buildView` SHALL delegate entirely to `renderCombatScreen(m)`. The combat screen SHALL fill the full viewport (`m.viewportW × m.viewportH`) and suppress the normal map, HUD, and key bar.
@@ -43,11 +43,11 @@ The log panel SHALL display only the log lines associated with rounds 1 through 
 - **THEN** only lines belonging to rounds 1 and 2 are visible
 
 ### Requirement: HP progress bars reflect HP at the current playback round
-The HP bars in both panels SHALL show HP values updated to reflect damage dealt through round `m.combatLogIndex`. The renderer SHALL scan visible log lines for damage patterns and compute current HP from the combat-start HP minus cumulative damage. Full HP is shown when `combatLogIndex == 0`.
+The HP bars in both panels SHALL show HP values updated to reflect damage dealt through round `m.combatLogIndex`. The renderer SHALL scan visible log lines for damage patterns and compute current HP from `MaxHP` minus cumulative damage. Full HP is shown when `combatLogIndex == 0`.
 
 #### Scenario: HP bar shows full HP before any rounds are revealed
 - **WHEN** `m.combatLogIndex == 0`
-- **THEN** player HP bar shows `PlayerStartHP/MaxHP` (all filled)
+- **THEN** player HP bar shows `MaxHP/MaxHP` (all filled)
 
 #### Scenario: HP bar decreases as rounds are revealed
 - **WHEN** `m.combatLogIndex` advances and the log contains damage events

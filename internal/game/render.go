@@ -385,13 +385,9 @@ func renderHUD(m Model) string {
 	// Compute armour from equipped items (currently all items have 0 armour bonus).
 	armour := 0
 
-	// In temperature-overlay mode use the same perceived value that drives the
-	// map colour, so the °C reading is consistent with what the player sees.
-	displayTemp := tile.Temperature
-	if m.mapMode == MapModeTemperature {
-		displayTemp = perceivedTemperature(tile)
-	}
-	celsius := tempCelsius(displayTemp, tile.Elevation, m.timeOfDay)
+	// Always use perceivedTemperature so the HUD reading is consistent with the
+	// temperature map overlay and reflects the biome's felt heat.
+	celsius := tempCelsius(perceivedTemperature(tile), tile.Elevation, m.timeOfDay)
 
 	// Mode-contextual tile info.
 	var tileInfo string
@@ -1041,76 +1037,208 @@ var (
 	combatDefeatStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ff5555"))
 )
 
+// speedLabel returns "Slow", "Normal", or "Fast" for the given combat speed.
+func speedLabel(speed int) string {
+	switch speed {
+	case CombatSpeedSlow:
+		return "Slow"
+	case CombatSpeedFast:
+		return "Fast"
+	default:
+		return "Normal"
+	}
+}
+
+// renderHeroPanel renders the left panel with ragdoll art, name, HP bar, and stats.
+func renderHeroPanel(m Model, width, height int) string {
+	cs := m.combatState
+	var lines []string
+
+	// Centre ragdoll vertically in the top portion.
+	artH := len(ragdoll)
+	statsH := 5 // name + HP bar + HP label + ARM + DMG
+	pad := (height - artH - statsH) / 3
+	if pad < 0 {
+		pad = 0
+	}
+	for i := 0; i < pad; i++ {
+		lines = append(lines, "")
+	}
+	for _, line := range ragdoll {
+		centered := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(line)
+		lines = append(lines, centered)
+	}
+	lines = append(lines, "")
+
+	// Player stats using HP at current round.
+	playerHP := hpAtRound(cs.PlayerStartHP, cs.Log, m.combatLogIndex, cs.Player.Name)
+	barW := width - 4
+	if barW < 5 {
+		barW = 5
+	}
+	if barW > 20 {
+		barW = 20
+	}
+	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  %s", cs.Player.Name)))
+	lines = append(lines, fmt.Sprintf("  %s HP %d/%d", renderProgressBar(playerHP, cs.Player.MaxHP, barW, "#22cc55", "#444c56"), playerHP, cs.Player.MaxHP))
+	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  ARM:%d  DMG:%d-%d  Init:%d", cs.Player.Armour, cs.Player.MinDamage, cs.Player.MaxDamage, cs.Player.Initiative)))
+
+	// Pad to height
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	lines = lines[:height]
+
+	// Constrain width
+	result := make([]string, len(lines))
+	for i, l := range lines {
+		result[i] = lipgloss.NewStyle().Width(width).Render(l)
+	}
+	return strings.Join(result, "\n")
+}
+
+// renderEnemyPanel renders the right panel with enemy glyph, name, HP bar, and stats.
+func renderEnemyPanel(m Model, width, height int) string {
+	cs := m.combatState
+	var lines []string
+
+	// Enemy glyph in a bordered box.
+	var enemyChar rune
+	if m.combatDungeonEnemy != nil {
+		enemyChar = m.combatDungeonEnemy.Template.Char
+	} else if cs.Enemy.Name != "" {
+		enemyChar = rune(cs.Enemy.Name[0])
+	} else {
+		enemyChar = '?'
+	}
+
+	glyphStr := string(enemyChar)
+	boxContent := lipgloss.NewStyle().
+		Width(5).Height(3).
+		Align(lipgloss.Center, lipgloss.Center).
+		Render(glyphStr)
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#768390")).
+		Render(boxContent)
+
+	// Centre the glyph box similarly to the ragdoll.
+	boxLines := strings.Split(box, "\n")
+	artH := len(boxLines)
+	statsH := 5
+	pad := (height - artH - statsH) / 3
+	if pad < 0 {
+		pad = 0
+	}
+	for i := 0; i < pad; i++ {
+		lines = append(lines, "")
+	}
+	for _, bl := range boxLines {
+		centered := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(bl)
+		lines = append(lines, centered)
+	}
+	lines = append(lines, "")
+
+	// Enemy stats using HP at current round.
+	enemyHP := hpAtRound(cs.EnemyStartHP, cs.Log, m.combatLogIndex, cs.Enemy.Name)
+	barW := width - 4
+	if barW < 5 {
+		barW = 5
+	}
+	if barW > 20 {
+		barW = 20
+	}
+	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  %s", cs.Enemy.Name)))
+	lines = append(lines, fmt.Sprintf("  %s HP %d/%d", renderProgressBar(enemyHP, cs.Enemy.MaxHP, barW, "#ff5555", "#444c56"), enemyHP, cs.Enemy.MaxHP))
+	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  ARM:%d  DMG:%d-%d  Init:%d", cs.Enemy.Armour, cs.Enemy.MinDamage, cs.Enemy.MaxDamage, cs.Enemy.Initiative)))
+
+	// Pad to height
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	lines = lines[:height]
+
+	// Constrain width
+	result := make([]string, len(lines))
+	for i, l := range lines {
+		result[i] = lipgloss.NewStyle().Width(width).Render(l)
+	}
+	return strings.Join(result, "\n")
+}
+
+// renderCombatLog renders the bottom log panel with speed label and visible combat log lines.
+func renderCombatLog(m Model, width, height int) string {
+	cs := m.combatState
+	var lines []string
+
+	// Header with speed label.
+	header := combatHeaderStyle.Render(" ⚔ Combat") + "  " +
+		combatStatStyle.Render(speedLabel(m.combatSpeed)) + "  " +
+		combatLogStyle.Render("[ ] speed")
+	lines = append(lines, lipgloss.NewStyle().Width(width).Render(header))
+	lines = append(lines, sidebarSubStyle.Render(" "+strings.Repeat("─", width-2)))
+
+	// Visible log lines.
+	visibleLines := combatLogLinesUpTo(cs.Log, m.combatLogIndex)
+	availRows := height - 2 // subtract header and separator
+	if m.combatLogIndex >= cs.Round {
+		availRows -= 2 // room for banner + hint
+	}
+	if availRows < 0 {
+		availRows = 0
+	}
+
+	// Show last N lines that fit.
+	if len(visibleLines) > availRows {
+		visibleLines = visibleLines[len(visibleLines)-availRows:]
+	}
+	for _, l := range visibleLines {
+		lines = append(lines, combatLogStyle.Render(" "+l))
+	}
+
+	// Victory/Defeated banner after playback completes.
+	if m.combatLogIndex >= cs.Round {
+		if cs.PlayerWon {
+			lines = append(lines, combatVictoryStyle.Render("  Victory!"))
+			lines = append(lines, sidebarSubStyle.Render("  press enter to continue"))
+		} else {
+			lines = append(lines, combatDefeatStyle.Render("  Defeated!"))
+			lines = append(lines, sidebarSubStyle.Render("  press enter to quit"))
+		}
+	}
+
+	// Pad to height.
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	lines = lines[:height]
+
+	return strings.Join(lines, "\n")
+}
+
 // renderCombatScreen fills the viewport with the combat view.
 func renderCombatScreen(m Model) string {
 	if m.combatState == nil {
 		return "No combat active."
 	}
 
-	cs := m.combatState
-	var lines []string
-
-	// Header
-	lines = append(lines, combatHeaderStyle.Render(" ⚔ Combat"))
-	lines = append(lines, sidebarSubStyle.Render(" "+strings.Repeat("─", m.viewportW-2)))
-	lines = append(lines, "")
-
-	// Stat panels side by side
-	pPanel := []string{
-		combatStatStyle.Render(fmt.Sprintf("  %s", cs.Player.Name)),
-		combatStatStyle.Render(fmt.Sprintf("  HP: %d/%d", cs.Player.HP, cs.Player.MaxHP)),
-		combatStatStyle.Render(fmt.Sprintf("  Armour: %d", cs.Player.Armour)),
-		combatStatStyle.Render(fmt.Sprintf("  Damage: %d-%d", cs.Player.MinDamage, cs.Player.MaxDamage)),
-		combatStatStyle.Render(fmt.Sprintf("  Initiative: %d", cs.Player.Initiative)),
+	logRows := m.viewportH / 3
+	topH := m.viewportH - logRows
+	leftW := m.viewportW * 40 / 100
+	if leftW < 20 {
+		leftW = 20
 	}
-	ePanel := []string{
-		combatStatStyle.Render(fmt.Sprintf("  %s", cs.Enemy.Name)),
-		combatStatStyle.Render(fmt.Sprintf("  HP: %d/%d", cs.Enemy.HP, cs.Enemy.MaxHP)),
-		combatStatStyle.Render(fmt.Sprintf("  Armour: %d", cs.Enemy.Armour)),
-		combatStatStyle.Render(fmt.Sprintf("  Damage: %d-%d", cs.Enemy.MinDamage, cs.Enemy.MaxDamage)),
-		combatStatStyle.Render(fmt.Sprintf("  Initiative: %d", cs.Enemy.Initiative)),
+	rightW := m.viewportW * 40 / 100
+	if rightW < 20 {
+		rightW = 20
 	}
 
-	panelW := m.viewportW / 2
-	for i := 0; i < len(pPanel); i++ {
-		left := lipgloss.NewStyle().Width(panelW).Render(pPanel[i])
-		right := lipgloss.NewStyle().Width(panelW).Render(ePanel[i])
-		lines = append(lines, left+right)
-	}
-	lines = append(lines, "")
+	heroPanel := renderHeroPanel(m, leftW, topH)
+	enemyPanel := renderEnemyPanel(m, rightW, topH)
+	logPanel := renderCombatLog(m, m.viewportW, logRows)
 
-	// Result banner
-	if cs.PlayerWon {
-		lines = append(lines, combatVictoryStyle.Render("  Victory!"))
-		lines = append(lines, sidebarSubStyle.Render("  press enter to continue"))
-	} else {
-		lines = append(lines, combatDefeatStyle.Render("  Defeated!"))
-		lines = append(lines, sidebarSubStyle.Render("  press enter to quit"))
-	}
-	lines = append(lines, "")
-
-	// Combat log — fill remaining rows
-	logStart := len(lines)
-	availRows := m.viewportH - logStart
-	if availRows < 0 {
-		availRows = 0
-	}
-
-	logLines := cs.Log
-	if len(logLines) > availRows {
-		logLines = logLines[len(logLines)-availRows:]
-	}
-	for _, l := range logLines {
-		lines = append(lines, combatLogStyle.Render(" "+l))
-	}
-
-	// Pad to viewportH
-	for len(lines) < m.viewportH {
-		lines = append(lines, "")
-	}
-	lines = lines[:m.viewportH]
-
-	return strings.Join(lines, "\n")
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top, heroPanel, enemyPanel)
+	return lipgloss.JoinVertical(lipgloss.Left, topRow, logPanel)
 }
 
 // ── View composition ──────────────────────────────────────────────────────────
