@@ -184,3 +184,37 @@ func TestBuildPlayerCombatant_UsesModelHP(t *testing.T) {
 		t.Fatalf("buildPlayerCombatant should use m.playerMaxHP: expected 20, got %d", c.MaxHP)
 	}
 }
+
+func TestBuildDungeonEnemyCombatant(t *testing.T) {
+	tmpl := &EnemyTemplate{
+		Name: "Goblin", Char: 'g', Color: "#55aa44",
+		BaseHP: 10, MaxHP: 20,
+	}
+	e := &DungeonEnemy{
+		X: 5, Y: 5, Template: tmpl,
+		HP: 12, MaxHP: 15, Armour: 2,
+		MinDamage: 3, MaxDamage: 6, Initiative: 5,
+	}
+	c := buildDungeonEnemyCombatant(e)
+	if c.Name != "Goblin" {
+		t.Fatalf("expected Name 'Goblin', got %q", c.Name)
+	}
+	if c.HP != 12 {
+		t.Fatalf("expected HP 12, got %d", c.HP)
+	}
+	if c.MaxHP != 15 {
+		t.Fatalf("expected MaxHP 15, got %d", c.MaxHP)
+	}
+	if c.Armour != 2 {
+		t.Fatalf("expected Armour 2, got %d", c.Armour)
+	}
+	if c.MinDamage != 3 {
+		t.Fatalf("expected MinDamage 3, got %d", c.MinDamage)
+	}
+	if c.MaxDamage != 6 {
+		t.Fatalf("expected MaxDamage 6, got %d", c.MaxDamage)
+	}
+	if c.Initiative != 5 {
+		t.Fatalf("expected Initiative 5, got %d", c.Initiative)
+	}
+}

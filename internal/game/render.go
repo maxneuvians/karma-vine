@@ -870,6 +870,19 @@ func renderDungeonMap(m Model, mapW, mapH int) string {
 
 			cell := m.currentDungeon.Cells[x][y]
 
+			// Enemy layer (before object/floor, after player).
+			enemyDrawn := false
+			for _, e := range m.currentDungeon.Enemies {
+				if e.X == x && e.Y == y {
+					row.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(e.Template.Color)).Render(string(e.Template.Char)))
+					enemyDrawn = true
+					break
+				}
+			}
+			if enemyDrawn {
+				continue
+			}
+
 			// Object > base cell.
 			if cell.Object != nil {
 				color := cell.Object.Color

@@ -47,11 +47,36 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 						}
 					}
 				}
+				// Victory: remove defeated dungeon enemy, resolve loot.
+				if m.combatDungeonEnemy != nil && m.currentDungeon != nil {
+					loot := resolveEnemyLoot(m.combatDungeonEnemy.Template.LootTable, rand.New(rand.NewSource(rand.Int63())))
+					if loot.Name != "" && len(m.inventory.Items) < InventoryMaxSlots {
+						// Stack if same name exists.
+						stacked := false
+						for i := range m.inventory.Items {
+							if m.inventory.Items[i].Name == loot.Name {
+								m.inventory.Items[i].Count += loot.Count
+								stacked = true
+								break
+							}
+						}
+						if !stacked {
+							m.inventory.Items = append(m.inventory.Items, loot)
+						}
+					}
+					for i, e := range m.currentDungeon.Enemies {
+						if e == m.combatDungeonEnemy {
+							m.currentDungeon.Enemies = append(m.currentDungeon.Enemies[:i], m.currentDungeon.Enemies[i+1:]...)
+							break
+						}
+					}
+				}
 				m.playerHP = m.combatState.Player.HP
 				m.screenMode = ScreenNormal
 				m.paused = false
 				m.combatState = nil
 				m.combatEnemy = nil
+				m.combatDungeonEnemy = nil
 			} else {
 				// Defeat: quit.
 				return m, tea.Quit
@@ -192,7 +217,13 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			if m.localMap != nil {
 				obj := m.localMap.Objects[m.playerPos.X][m.playerPos.Y]
 				if obj != nil && obj.Char == '>' {
-					_ = DungeonMetaFor(m.worldPos.X, m.worldPos.Y, &m)
+					meta := DungeonMetaFor(m.worldPos.X, m.worldPos.Y, &m)
+					// Record biome on first entry.
+					if meta.Biome == 0 {
+						tile := TileAt(m.worldPos.X, m.worldPos.Y, &m)
+						meta.Biome = tile.Biome
+						m.dungeonMeta[m.worldPos] = meta
+					}
 					level := DungeonLevelFor(m.worldPos.X, m.worldPos.Y, 1, &m)
 					m.currentDungeon = level
 					m.dungeonDepth = 1
@@ -398,6 +429,20 @@ func applyDelta(dx, dy int, m Model) Model {
 		// Object blocking check
 		if obj := m.currentDungeon.Cells[newX][newY].Object; obj != nil && obj.Blocking {
 			return m
+		}
+		// Enemy collision — triggers combat without moving
+		for _, e := range m.currentDungeon.Enemies {
+			if e.X == newX && e.Y == newY {
+				player := buildPlayerCombatant(m)
+				enemy := buildDungeonEnemyCombatant(e)
+				hooks := buildCombatHooks(m)
+				state := resolveCombat(player, enemy, hooks, rand.New(rand.NewSource(rand.Int63())))
+				m.combatState = &state
+				m.combatDungeonEnemy = e
+				m.screenMode = ScreenCombat
+				m.paused = true
+				return m
+			}
 		}
 		m.playerPos.X = newX
 		m.playerPos.Y = newY

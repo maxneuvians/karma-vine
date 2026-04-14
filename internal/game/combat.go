@@ -73,6 +73,19 @@ func buildCombatHooks(m Model) []RoundHook {
 	return nil
 }
 
+// buildDungeonEnemyCombatant constructs a Combatant from a DungeonEnemy.
+func buildDungeonEnemyCombatant(e *DungeonEnemy) Combatant {
+	return Combatant{
+		Name:       e.Template.Name,
+		HP:         e.HP,
+		MaxHP:      e.MaxHP,
+		Armour:     e.Armour,
+		MinDamage:  e.MinDamage,
+		MaxDamage:  e.MaxDamage,
+		Initiative: e.Initiative,
+	}
+}
+
 // ── Combat resolution ───────────────────────────────────────────────────────
 
 // resolveCombat runs a complete auto-battle between player and enemy.

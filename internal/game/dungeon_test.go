@@ -3,8 +3,8 @@ package game
 import "testing"
 
 func TestGenerateDungeonLevel_Determinism(t *testing.T) {
-	a := GenerateDungeonLevel(42, 3, 7, 1, 5)
-	b := GenerateDungeonLevel(42, 3, 7, 1, 5)
+	a := GenerateDungeonLevel(42, 3, 7, 1, 5, Plains)
+	b := GenerateDungeonLevel(42, 3, 7, 1, 5, Plains)
 	for x := 0; x < DungeonW; x++ {
 		for y := 0; y < DungeonH; y++ {
 			if a.Cells[x][y].Kind != b.Cells[x][y].Kind {
@@ -15,7 +15,7 @@ func TestGenerateDungeonLevel_Determinism(t *testing.T) {
 }
 
 func TestGenerateDungeonLevel_HasFloorCell(t *testing.T) {
-	level := GenerateDungeonLevel(42, 0, 0, 1, 5)
+	level := GenerateDungeonLevel(42, 0, 0, 1, 5, Plains)
 	for x := 0; x < DungeonW; x++ {
 		for y := 0; y < DungeonH; y++ {
 			if level.Cells[x][y].Kind == CellFloor {
@@ -27,7 +27,7 @@ func TestGenerateDungeonLevel_HasFloorCell(t *testing.T) {
 }
 
 func TestGenerateDungeonLevel_UpStairOnFloor(t *testing.T) {
-	level := GenerateDungeonLevel(42, 1, 2, 1, 5)
+	level := GenerateDungeonLevel(42, 1, 2, 1, 5, Plains)
 	cell := level.Cells[level.UpStair.X][level.UpStair.Y]
 	if cell.Kind != CellFloor {
 		t.Fatalf("up-stair at (%d,%d) is on cell kind %d, want CellFloor",
@@ -36,7 +36,7 @@ func TestGenerateDungeonLevel_UpStairOnFloor(t *testing.T) {
 }
 
 func TestGenerateDungeonLevel_DownStairPresentNonFinal(t *testing.T) {
-	level := GenerateDungeonLevel(42, 1, 2, 1, 5) // depth 1 < maxDepth 5
+	level := GenerateDungeonLevel(42, 1, 2, 1, 5, Plains) // depth 1 < maxDepth 5
 	if !level.HasDownStair {
 		t.Fatal("expected down-stair on non-final level")
 	}
@@ -48,14 +48,14 @@ func TestGenerateDungeonLevel_DownStairPresentNonFinal(t *testing.T) {
 }
 
 func TestGenerateDungeonLevel_NoDownStairFinalLevel(t *testing.T) {
-	level := GenerateDungeonLevel(42, 1, 2, 5, 5) // depth == maxDepth
+	level := GenerateDungeonLevel(42, 1, 2, 5, 5, Plains) // depth == maxDepth
 	if level.HasDownStair {
 		t.Fatal("expected no down-stair on final level")
 	}
 }
 
 func TestGenerateDungeonLevel_TorchOnWallCell(t *testing.T) {
-	level := GenerateDungeonLevel(42, 5, 5, 1, 5)
+	level := GenerateDungeonLevel(42, 5, 5, 1, 5, Plains)
 	found := false
 	for x := 0; x < DungeonW; x++ {
 		for y := 0; y < DungeonH; y++ {
@@ -125,7 +125,7 @@ func TestDungeonMetaFor_Stable(t *testing.T) {
 }
 
 func TestGenerateDungeonLevel_AllObjectsHaveNames(t *testing.T) {
-	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5, Plains)
 	for x := 0; x < DungeonW; x++ {
 		for y := 0; y < DungeonH; y++ {
 			if obj := level.Cells[x][y].Object; obj != nil && obj.Name == "" {
@@ -137,7 +137,7 @@ func TestGenerateDungeonLevel_AllObjectsHaveNames(t *testing.T) {
 
 // 7.14 All unlit torches and braziers generated in dungeon have Pickupable true.
 func TestGenerateDungeonLevel_UnlitTorchesPickupable(t *testing.T) {
-	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5, Plains)
 	for x := 0; x < DungeonW; x++ {
 		for y := 0; y < DungeonH; y++ {
 			obj := level.Cells[x][y].Object

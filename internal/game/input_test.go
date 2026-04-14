@@ -1330,3 +1330,123 @@ func TestHandleKey_BackslashTogglesSidebar(t *testing.T) {
 		t.Fatal("\\ should toggle showSidebar to true")
 	}
 }
+
+// --- Dungeon enemy combat tests ---
+
+func TestHandleKey_MovingIntoEnemyTriggersCombat(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	m.screenMode = ScreenNormal
+	m.viewportW = 80
+	m.viewportH = 24
+	level := &DungeonLevel{}
+	for x := 0; x < DungeonW; x++ {
+		for y := 0; y < DungeonH; y++ {
+			level.Cells[x][y].Kind = CellFloor
+		}
+	}
+	tmpl := dungeonEnemyRoster[Plains]
+	enemy := spawnEnemy(tmpl, 10, 9, 1, 5)
+	level.Enemies = []*DungeonEnemy{enemy}
+	m.currentDungeon = level
+	m.playerPos = LocalCoord{X: 10, Y: 10}
+
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyUp}, m)
+	if result.screenMode != ScreenCombat {
+		t.Fatal("moving into enemy should trigger ScreenCombat")
+	}
+	if result.playerPos.X != 10 || result.playerPos.Y != 10 {
+		t.Fatal("player should not have moved")
+	}
+}
+
+func TestLootAddedToInventoryAfterVictory(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	tmpl := &EnemyTemplate{
+		Name: "Test", Char: 'x', Color: "#fff",
+		BaseHP: 1, MaxHP: 1,
+		LootTable: []LootEntry{
+			{Item: Item{Char: '!', Color: "#ff0", Name: "TestLoot", Count: 1}, Weight: 100},
+		},
+	}
+	enemy := &DungeonEnemy{X: 5, Y: 5, Template: tmpl, HP: 0, MaxHP: 1}
+	level := &DungeonLevel{}
+	level.Enemies = []*DungeonEnemy{enemy}
+	m.currentDungeon = level
+	m.combatDungeonEnemy = enemy
+	m.combatState = &CombatState{
+		PlayerWon: true,
+		Player:    Combatant{Name: "Player", HP: 18, MaxHP: 20},
+		Enemy:     Combatant{Name: "Test", HP: 0, MaxHP: 1},
+	}
+
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	found := false
+	for _, item := range result.inventory.Items {
+		if item.Name == "TestLoot" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected TestLoot in inventory after victory")
+	}
+	if len(result.currentDungeon.Enemies) != 0 {
+		t.Fatalf("expected 0 enemies after defeat, got %d", len(result.currentDungeon.Enemies))
+	}
+}
+
+func TestLootDiscardedWhenInventoryFull(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	// Fill inventory.
+	for i := 0; i < InventoryMaxSlots; i++ {
+		m.inventory.Items = append(m.inventory.Items, Item{Name: fmt.Sprintf("Item%d", i), Count: 1})
+	}
+	tmpl := &EnemyTemplate{
+		Name: "Test", Char: 'x', Color: "#fff",
+		BaseHP: 1, MaxHP: 1,
+		LootTable: []LootEntry{
+			{Item: Item{Name: "TestLoot", Count: 1}, Weight: 100},
+		},
+	}
+	enemy := &DungeonEnemy{X: 5, Y: 5, Template: tmpl, HP: 0, MaxHP: 1}
+	level := &DungeonLevel{}
+	level.Enemies = []*DungeonEnemy{enemy}
+	m.currentDungeon = level
+	m.combatDungeonEnemy = enemy
+	m.combatState = &CombatState{
+		PlayerWon: true,
+		Player:    Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:     Combatant{Name: "Test", HP: 0, MaxHP: 1},
+	}
+
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if len(result.inventory.Items) != InventoryMaxSlots {
+		t.Fatalf("inventory should still be full: got %d", len(result.inventory.Items))
+	}
+	for _, item := range result.inventory.Items {
+		if item.Name == "TestLoot" {
+			t.Fatal("TestLoot should not be in full inventory")
+		}
+	}
+}
+
+func TestDungeonMeta_BiomeRecorded(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Objects[5][5] = &Object{Char: '>', Color: "#e8c96a", Blocking: false, Name: "Staircase Down"}
+
+	_, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	key := m.worldPos
+	meta, ok := m.dungeonMeta[key]
+	if !ok {
+		t.Fatal("DungeonMeta should be recorded on first descent")
+	}
+	tile := TileAt(m.worldPos.X, m.worldPos.Y, &m)
+	if meta.Biome != tile.Biome {
+		t.Fatalf("expected biome %d, got %d", tile.Biome, meta.Biome)
+	}
+}

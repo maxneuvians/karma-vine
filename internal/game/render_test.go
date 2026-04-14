@@ -737,7 +737,7 @@ func makeDungeonModel() Model {
 	m.viewportW = 80
 	m.viewportH = 26
 	m.mode = ModeDungeon
-	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5, Plains)
 	m.currentDungeon = level
 	m.dungeonDepth = 3
 	m.playerPos = level.UpStair
@@ -821,7 +821,7 @@ func TestRenderSidebar_DungeonShowsDepth(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeDungeon
 	m.dungeonDepth = 1
-	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5, Plains)
 	m.currentDungeon = level
 	m.playerPos = level.UpStair
 	out := renderSidebar(m, 20)

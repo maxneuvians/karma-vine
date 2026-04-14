@@ -142,11 +142,13 @@ type DungeonLevel struct {
 	UpStair      LocalCoord
 	DownStair    LocalCoord
 	HasDownStair bool
+	Enemies      []*DungeonEnemy
 }
 
 // DungeonMeta stores per-entrance dungeon metadata.
 type DungeonMeta struct {
 	MaxDepth int
+	Biome    Biome
 }
 
 // dungeonKey is a cache key for a specific dungeon level.
@@ -210,4 +212,40 @@ type CombatState struct {
 	Log       []string
 	Round     int
 	PlayerWon bool
+}
+
+// LootEntry is a single weighted item in an enemy's loot table.
+type LootEntry struct {
+	Item   Item
+	Weight int
+}
+
+// EnemyTemplate defines the archetype for a dungeon enemy type.
+type EnemyTemplate struct {
+	Name           string
+	Char           rune
+	Color          string
+	BaseHP         int
+	MaxHP          int
+	BaseArmour     int
+	MaxArmour      int
+	BaseMinDamage  int
+	MaxMinDamage   int
+	BaseMaxDamage  int
+	MaxMaxDamage   int
+	BaseInitiative int
+	MaxInitiative  int
+	LootTable      []LootEntry
+}
+
+// DungeonEnemy is an active enemy on a dungeon level.
+type DungeonEnemy struct {
+	X, Y       int
+	Template   *EnemyTemplate
+	HP         int
+	MaxHP      int
+	Armour     int
+	MinDamage  int
+	MaxDamage  int
+	Initiative int
 }

@@ -37,8 +37,9 @@ type Model struct {
 	equipCursor     int
 
 	// Combat
-	combatState *CombatState
-	combatEnemy *Animal
+	combatState        *CombatState
+	combatEnemy        *Animal
+	combatDungeonEnemy *DungeonEnemy
 
 	// Player stats
 	playerHP    int
@@ -123,6 +124,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.timeOfDay = math.Mod(m.timeOfDay+delta, 1.0)
 		if m.mode == ModeLocal && m.localMap != nil {
 			moveAnimals(&m)
+		}
+		if m.mode == ModeDungeon {
+			m = moveEnemies(m)
 		}
 		return m, tickCmd()
 	}

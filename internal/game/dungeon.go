@@ -72,7 +72,7 @@ func bspLeaves(node *bspNode) []*bspNode {
 // ── Dungeon level generation ────────────────────────────────────────────────
 
 // GenerateDungeonLevel produces a deterministic dungeon level using BSP.
-func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel {
+func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int, biome Biome) *DungeonLevel {
 	seed := int64(globalSeed ^ wx*31337 ^ wy*1619 ^ depth*7919)
 	rng := rand.New(rand.NewSource(seed))
 
@@ -197,6 +197,32 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 		placed++
 	}
 
+	// Spawn enemies based on biome and depth.
+	tmpl, ok := dungeonEnemyRoster[biome]
+	if !ok {
+		tmpl = dungeonEnemyFallback
+	}
+	// Collect all floor positions not occupied by objects or staircases.
+	var enemyPositions []LocalCoord
+	for x := 0; x < DungeonW; x++ {
+		for y := 0; y < DungeonH; y++ {
+			if level.Cells[x][y].Kind == CellFloor && level.Cells[x][y].Object == nil {
+				enemyPositions = append(enemyPositions, LocalCoord{X: x, Y: y})
+			}
+		}
+	}
+	rng.Shuffle(len(enemyPositions), func(i, j int) {
+		enemyPositions[i], enemyPositions[j] = enemyPositions[j], enemyPositions[i]
+	})
+	enemyCount := depth
+	if enemyCount > len(enemyPositions) {
+		enemyCount = len(enemyPositions)
+	}
+	for i := 0; i < enemyCount; i++ {
+		p := enemyPositions[i]
+		level.Enemies = append(level.Enemies, spawnEnemy(tmpl, p.X, p.Y, depth, maxDepth))
+	}
+
 	return level
 }
 
@@ -282,7 +308,7 @@ func DungeonLevelFor(wx, wy, depth int, m *Model) *DungeonLevel {
 		return dl
 	}
 	meta := DungeonMetaFor(wx, wy, m)
-	dl := GenerateDungeonLevel(m.globalSeed, wx, wy, depth, meta.MaxDepth)
+	dl := GenerateDungeonLevel(m.globalSeed, wx, wy, depth, meta.MaxDepth, meta.Biome)
 	m.dungeonCache[key] = dl
 	return dl
 }
