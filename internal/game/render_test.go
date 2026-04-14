@@ -1025,3 +1025,73 @@ func TestRenderFullscreenInventory_FocusedHeader(t *testing.T) {
 	}
 }
 
+// --- Combat render tests ---
+
+func TestRenderCombatScreen_ShowsStats(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 15, MaxHP: 20, Armour: 2, MinDamage: 1, MaxDamage: 4, Initiative: 5},
+		Enemy:  Combatant{Name: "Wolf", HP: 8, MaxHP: 12, Armour: 1, MinDamage: 2, MaxDamage: 5, Initiative: 6},
+		Log:    []string{"Round 1: Player attacks Wolf for 3 damage"},
+	}
+	out := renderCombatScreen(m)
+	for _, s := range []string{"Player", "Wolf", "15/20", "8/12", "Armour: 2", "Armour: 1"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("combat screen should contain %q", s)
+		}
+	}
+}
+
+func TestRenderCombatScreen_VictoryBanner(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player:    Combatant{Name: "Player", HP: 10, MaxHP: 20},
+		Enemy:     Combatant{Name: "Rat", HP: 0, MaxHP: 5},
+		PlayerWon: true,
+	}
+	out := renderCombatScreen(m)
+	if !strings.Contains(out, "Victory!") {
+		t.Error("combat screen should contain 'Victory!' when player won")
+	}
+}
+
+func TestRenderCombatScreen_DefeatBanner(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player:    Combatant{Name: "Player", HP: 0, MaxHP: 20},
+		Enemy:     Combatant{Name: "Bear", HP: 10, MaxHP: 18},
+		PlayerWon: false,
+	}
+	out := renderCombatScreen(m)
+	if !strings.Contains(out, "Defeated!") {
+		t.Error("combat screen should contain 'Defeated!' when player lost")
+	}
+}
+
+func TestBuildView_ScreenCombat(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player:    Combatant{Name: "Player", HP: 15, MaxHP: 20},
+		Enemy:     Combatant{Name: "Wolf", HP: 0, MaxHP: 12},
+		PlayerWon: true,
+		Log:       []string{"Round 1: Player attacks Wolf"},
+	}
+	buildOut := buildView(m)
+	renderOut := renderCombatScreen(m)
+	if buildOut != renderOut {
+		t.Error("buildView with ScreenCombat should return renderCombatScreen output")
+	}
+}
+

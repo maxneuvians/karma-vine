@@ -1209,3 +1209,88 @@ func TestMouseClick_IgnoredWhenSidebarOpen(t *testing.T) {
 		t.Fatalf("click with sidebar: playerPos.X = %d, want 40 (unchanged)", result.playerPos.X)
 	}
 }
+
+// ── Combat input tests ───────────────────────────────────────────────────────
+
+func TestHandleKey_GOnAnimalInitiatesCombat(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Animals = []*Animal{{X: 5, Y: 5, Char: 'w', Color: "#555", Name: "Wolf"}}
+
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
+	if result.screenMode != ScreenCombat {
+		t.Fatalf("g on animal: screenMode = %d, want ScreenCombat", result.screenMode)
+	}
+	if result.combatState == nil {
+		t.Fatal("g on animal: combatState should not be nil")
+	}
+	if !result.paused {
+		t.Fatal("g on animal: should be paused during combat")
+	}
+}
+
+func TestHandleKey_GOnEmptyCellSkipsCombat(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	// No animal at player position.
+
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
+	if result.screenMode != ScreenNormal {
+		t.Fatalf("g on empty cell: screenMode = %d, want ScreenNormal", result.screenMode)
+	}
+}
+
+func TestHandleKey_CombatScreenSuppressesMovement(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{PlayerWon: true}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyUp}, m)
+	if result.playerPos.X != 5 || result.playerPos.Y != 5 {
+		t.Fatalf("movement in ScreenCombat: playerPos changed to {%d,%d}", result.playerPos.X, result.playerPos.Y)
+	}
+}
+
+func TestHandleKey_EnterDismissesVictory(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.screenMode = ScreenCombat
+	m.paused = true
+	enemy := &Animal{X: 5, Y: 5, Char: 'w', Color: "#555", Name: "Wolf"}
+	m.localMap.Animals = []*Animal{enemy}
+	m.combatState = &CombatState{PlayerWon: true}
+	m.combatEnemy = enemy
+
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if result.screenMode != ScreenNormal {
+		t.Fatalf("enter on victory: screenMode = %d, want ScreenNormal", result.screenMode)
+	}
+	if result.paused {
+		t.Fatal("enter on victory: should be unpaused")
+	}
+	if cmd != nil {
+		t.Fatal("enter on victory: cmd should be nil")
+	}
+	if len(result.localMap.Animals) != 0 {
+		t.Fatalf("enter on victory: animal should be removed, got %d", len(result.localMap.Animals))
+	}
+}
+
+func TestHandleKey_EnterQuitsOnDefeat(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{PlayerWon: false}
+
+	_, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if cmd == nil {
+		t.Fatal("enter on defeat: expected non-nil quit command")
+	}
+}

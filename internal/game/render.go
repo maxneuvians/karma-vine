@@ -940,10 +940,97 @@ func renderFullscreenInventory(m Model) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 }
 
+// ── Combat screen renderer ────────────────────────────────────────────────────
+
+var (
+	combatHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ff5555"))
+	combatStatStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#ccd9e0"))
+	combatLogStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#768390"))
+	combatVictoryStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#58a6ff"))
+	combatDefeatStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ff5555"))
+)
+
+// renderCombatScreen fills the viewport with the combat view.
+func renderCombatScreen(m Model) string {
+	if m.combatState == nil {
+		return "No combat active."
+	}
+
+	cs := m.combatState
+	var lines []string
+
+	// Header
+	lines = append(lines, combatHeaderStyle.Render(" ⚔ Combat"))
+	lines = append(lines, sidebarSubStyle.Render(" "+strings.Repeat("─", m.viewportW-2)))
+	lines = append(lines, "")
+
+	// Stat panels side by side
+	pPanel := []string{
+		combatStatStyle.Render(fmt.Sprintf("  %s", cs.Player.Name)),
+		combatStatStyle.Render(fmt.Sprintf("  HP: %d/%d", cs.Player.HP, cs.Player.MaxHP)),
+		combatStatStyle.Render(fmt.Sprintf("  Armour: %d", cs.Player.Armour)),
+		combatStatStyle.Render(fmt.Sprintf("  Damage: %d-%d", cs.Player.MinDamage, cs.Player.MaxDamage)),
+		combatStatStyle.Render(fmt.Sprintf("  Initiative: %d", cs.Player.Initiative)),
+	}
+	ePanel := []string{
+		combatStatStyle.Render(fmt.Sprintf("  %s", cs.Enemy.Name)),
+		combatStatStyle.Render(fmt.Sprintf("  HP: %d/%d", cs.Enemy.HP, cs.Enemy.MaxHP)),
+		combatStatStyle.Render(fmt.Sprintf("  Armour: %d", cs.Enemy.Armour)),
+		combatStatStyle.Render(fmt.Sprintf("  Damage: %d-%d", cs.Enemy.MinDamage, cs.Enemy.MaxDamage)),
+		combatStatStyle.Render(fmt.Sprintf("  Initiative: %d", cs.Enemy.Initiative)),
+	}
+
+	panelW := m.viewportW / 2
+	for i := 0; i < len(pPanel); i++ {
+		left := lipgloss.NewStyle().Width(panelW).Render(pPanel[i])
+		right := lipgloss.NewStyle().Width(panelW).Render(ePanel[i])
+		lines = append(lines, left+right)
+	}
+	lines = append(lines, "")
+
+	// Result banner
+	if cs.PlayerWon {
+		lines = append(lines, combatVictoryStyle.Render("  Victory!"))
+		lines = append(lines, sidebarSubStyle.Render("  press enter to continue"))
+	} else {
+		lines = append(lines, combatDefeatStyle.Render("  Defeated!"))
+		lines = append(lines, sidebarSubStyle.Render("  press enter to quit"))
+	}
+	lines = append(lines, "")
+
+	// Combat log — fill remaining rows
+	logStart := len(lines)
+	availRows := m.viewportH - logStart
+	if availRows < 0 {
+		availRows = 0
+	}
+
+	logLines := cs.Log
+	if len(logLines) > availRows {
+		logLines = logLines[len(logLines)-availRows:]
+	}
+	for _, l := range logLines {
+		lines = append(lines, combatLogStyle.Render(" "+l))
+	}
+
+	// Pad to viewportH
+	for len(lines) < m.viewportH {
+		lines = append(lines, "")
+	}
+	lines = lines[:m.viewportH]
+
+	return strings.Join(lines, "\n")
+}
+
 // ── View composition ──────────────────────────────────────────────────────────
 
 // buildView composes the full terminal view: optional sidebar | map, HUD, key bar.
 func buildView(m Model) string {
+	// Fullscreen combat takes over the entire viewport.
+	if m.screenMode == ScreenCombat {
+		return renderCombatScreen(m)
+	}
+
 	// Fullscreen inventory takes over the entire viewport.
 	if m.screenMode == ScreenInventory {
 		return renderFullscreenInventory(m)

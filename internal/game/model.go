@@ -36,6 +36,10 @@ type Model struct {
 	equipFocused    bool
 	equipCursor     int
 
+	// Combat
+	combatState *CombatState
+	combatEnemy *Animal
+
 	// UI
 	viewportW       int
 	viewportH       int

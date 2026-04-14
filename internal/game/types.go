@@ -170,6 +170,7 @@ type ScreenMode int
 const (
 	ScreenNormal    ScreenMode = iota // normal map/HUD view
 	ScreenInventory                   // fullscreen inventory overlay
+	ScreenCombat                      // fullscreen combat screen
 )
 
 // BodySlot identifies one of the six wearable slots on the player's body.
@@ -186,3 +187,27 @@ const (
 
 // NumBodySlots is the total number of equipment slots.
 const NumBodySlots = 6
+
+// Combatant holds all combat-relevant stats for one participant.
+type Combatant struct {
+	Name      string
+	HP        int
+	MaxHP     int
+	Armour    int
+	MinDamage int
+	MaxDamage int
+	Initiative int
+}
+
+// RoundHook is a side-effect callback invoked before each round's attacks.
+type RoundHook func(self, opponent *Combatant)
+
+// CombatState holds the full result of a resolved combat encounter.
+type CombatState struct {
+	Player    Combatant
+	Enemy     Combatant
+	Hooks     []RoundHook
+	Log       []string
+	Round     int
+	PlayerWon bool
+}

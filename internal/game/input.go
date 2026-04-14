@@ -1,6 +1,8 @@
 package game
 
 import (
+	"math/rand"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -25,6 +27,34 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 		case "?":
 			m.showMapPicker = false
 			m.showSidebar = true
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+
+	// While the combat screen is shown, suppress all keys except dismiss/quit.
+	if m.screenMode == ScreenCombat {
+		switch msg.String() {
+		case "enter", "space":
+			if m.combatState != nil && m.combatState.PlayerWon {
+				// Victory: remove defeated animal, return to normal.
+				if m.combatEnemy != nil && m.localMap != nil {
+					for i, a := range m.localMap.Animals {
+						if a == m.combatEnemy {
+							m.localMap.Animals = append(m.localMap.Animals[:i], m.localMap.Animals[i+1:]...)
+							break
+						}
+					}
+				}
+				m.screenMode = ScreenNormal
+				m.paused = false
+				m.combatState = nil
+				m.combatEnemy = nil
+			} else {
+				// Defeat: quit.
+				return m, tea.Quit
+			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
@@ -213,8 +243,24 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			m.screenMode = ScreenInventory
 		}
 
-	// Pick up item
+	// Pick up item / initiate combat
 	case "g":
+		if m.mode == ModeLocal && m.localMap != nil {
+			// Check for animal at player position → initiate combat.
+			for _, a := range m.localMap.Animals {
+				if a.X == m.playerPos.X && a.Y == m.playerPos.Y {
+					player := buildPlayerCombatant(m)
+					enemy := buildEnemyCombatant(*a)
+					hooks := buildCombatHooks(m)
+					state := resolveCombat(player, enemy, hooks, rand.New(rand.NewSource(rand.Int63())))
+					m.combatState = &state
+					m.combatEnemy = a
+					m.screenMode = ScreenCombat
+					m.paused = true
+					return m, nil
+				}
+			}
+		}
 		if m.mode == ModeLocal || m.mode == ModeDungeon {
 			m = handlePickup(m)
 		}
