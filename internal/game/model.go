@@ -40,11 +40,16 @@ type Model struct {
 	combatState *CombatState
 	combatEnemy *Animal
 
+	// Player stats
+	playerHP    int
+	playerMaxHP int
+
 	// UI
 	viewportW       int
 	viewportH       int
 	mode            Mode
 	showSidebar     bool
+	showHelpPanel   bool
 	worldZoom       int // 1=normal, 2=2×, 4=4×, 8=8×
 	mapMode         MapMode
 	showMapPicker   bool
@@ -77,6 +82,8 @@ func NewModel() Model {
 		dungeonCache: make(map[dungeonKey]*DungeonLevel),
 		dungeonMeta:  make(map[WorldCoord]DungeonMeta),
 		inventory:    Inventory{Items: []Item{}, Equipped: defaultOutfit()},
+		playerHP:     20,
+		playerMaxHP:  20,
 		timeOfDay:    0.25, // start at 6 AM
 		timeScale:    1,
 		worldZoom:    1,

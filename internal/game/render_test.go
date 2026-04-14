@@ -389,27 +389,6 @@ func TestRenderSidebar_LocalMode_WithFireObjectsAnimals(t *testing.T) {
 	}
 }
 
-// --- renderKeyBar ---
-
-func TestRenderKeyBar_WorldMode(t *testing.T) {
-	m := NewModel()
-	m.mode = ModeWorld
-	m.worldZoom = 2
-	out := renderKeyBar(m)
-	if out == "" {
-		t.Fatal("renderKeyBar ModeWorld returned empty string")
-	}
-}
-
-func TestRenderKeyBar_LocalMode(t *testing.T) {
-	m := NewModel()
-	m.mode = ModeLocal
-	out := renderKeyBar(m)
-	if out == "" {
-		t.Fatal("renderKeyBar ModeLocal returned empty string")
-	}
-}
-
 // --- buildView ---
 
 func TestBuildView_WorldMode(t *testing.T) {
@@ -779,36 +758,11 @@ func TestBuildView_DungeonContainsGlyphs(t *testing.T) {
 func TestRenderHUD_DungeonShowsDepth(t *testing.T) {
 	m := makeDungeonModel()
 	hud := renderHUD(m)
-	if !strings.Contains(hud, "Depth: 3") {
-		t.Errorf("dungeon HUD should contain 'Depth: 3', got: %s", hud)
+	if !strings.Contains(hud, "D:3") {
+		t.Errorf("dungeon HUD should contain 'D:3', got: %s", hud)
 	}
 	if !strings.Contains(hud, "Dungeon") {
 		t.Errorf("dungeon HUD should contain 'Dungeon', got: %s", hud)
-	}
-}
-
-func TestRenderKeyBar_DungeonHints(t *testing.T) {
-	m := makeDungeonModel()
-	bar := renderKeyBar(m)
-	if !strings.Contains(bar, "< up") {
-		t.Errorf("dungeon key bar should contain '< up', got: %s", bar)
-	}
-	if !strings.Contains(bar, "> down") {
-		t.Errorf("dungeon key bar should contain '> down', got: %s", bar)
-	}
-	if !strings.Contains(bar, "esc exit") {
-		t.Errorf("dungeon key bar should contain 'esc exit', got: %s", bar)
-	}
-}
-
-func TestRenderKeyBar_WorldModeNoDungeonHints(t *testing.T) {
-	m := NewModel()
-	m.viewportW = 80
-	m.viewportH = 26
-	m.mode = ModeWorld
-	bar := renderKeyBar(m)
-	if strings.Contains(bar, "< up") {
-		t.Error("world key bar should not contain dungeon hints")
 	}
 }
 
@@ -892,18 +846,14 @@ func TestRenderSidebar_WorldTemperatureMode(t *testing.T) {
 	}
 }
 
-// 7.17 HUD contains item count string.
-func TestRenderHUD_ContainsItemCount(t *testing.T) {
+// 7.17 HUD contains HP info string.
+func TestRenderHUD_ContainsHPInfo(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.viewportW = 120
 	m.viewportH = 40
-	m.inventory.Items = []Item{
-		{Name: "Axe", Count: 1},
-		{Name: "Torch", Count: 2},
-	}
 	out := renderHUD(m)
-	expected := fmt.Sprintf("Items: %d/%d", 2, InventoryMaxSlots)
+	expected := fmt.Sprintf("HP %d/%d", m.playerHP, m.playerMaxHP)
 	if !strings.Contains(out, expected) {
 		t.Errorf("HUD should contain %q, got:\n%s", expected, out)
 	}
@@ -1092,6 +1042,141 @@ func TestBuildView_ScreenCombat(t *testing.T) {
 	renderOut := renderCombatScreen(m)
 	if buildOut != renderOut {
 		t.Error("buildView with ScreenCombat should return renderCombatScreen output")
+	}
+}
+
+// --- renderProgressBar ---
+
+func TestRenderProgressBar_HalfFull(t *testing.T) {
+	out := renderProgressBar(5, 10, 10, "#22cc55", "#444c56")
+	if strings.Count(out, "█") != 5 {
+		t.Errorf("expected 5 █, got %d in %q", strings.Count(out, "█"), out)
+	}
+	if strings.Count(out, "░") != 5 {
+		t.Errorf("expected 5 ░, got %d in %q", strings.Count(out, "░"), out)
+	}
+}
+
+func TestRenderProgressBar_Full(t *testing.T) {
+	out := renderProgressBar(10, 10, 10, "#22cc55", "#444c56")
+	if strings.Contains(out, "░") {
+		t.Errorf("full bar should have no ░, got %q", out)
+	}
+}
+
+func TestRenderProgressBar_Zero(t *testing.T) {
+	out := renderProgressBar(0, 10, 10, "#22cc55", "#444c56")
+	if strings.Contains(out, "█") {
+		t.Errorf("zero bar should have no █, got %q", out)
+	}
+}
+
+func TestRenderProgressBar_ZeroWidth(t *testing.T) {
+	out := renderProgressBar(5, 10, 0, "#22cc55", "#444c56")
+	if out != "" {
+		t.Errorf("zero width should return empty string, got %q", out)
+	}
+}
+
+func TestRenderProgressBar_ZeroMax(t *testing.T) {
+	out := renderProgressBar(5, 0, 10, "#22cc55", "#444c56")
+	if strings.Contains(out, "█") {
+		t.Errorf("zero max should have no █, got %q", out)
+	}
+}
+
+// --- renderHUD new assertions ---
+
+func TestRenderHUD_ContainsHelpHint(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 24
+	out := renderHUD(m)
+	if !strings.Contains(out, "? help") {
+		t.Errorf("HUD should contain '? help', got: %s", out)
+	}
+}
+
+func TestRenderHUD_ContainsPaused(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 24
+	m.paused = true
+	out := renderHUD(m)
+	if !strings.Contains(out, "[PAUSED]") {
+		t.Errorf("HUD should contain '[PAUSED]' when paused, got: %s", out)
+	}
+}
+
+func TestRenderHUD_ContainsArmour(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 24
+	out := renderHUD(m)
+	if !strings.Contains(out, "ARM:0") {
+		t.Errorf("HUD should contain 'ARM:0', got: %s", out)
+	}
+}
+
+func TestRenderHUD_HPBarPresent(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 24
+	out := renderHUD(m)
+	if !strings.Contains(out, "█") && !strings.Contains(out, "░") {
+		t.Errorf("HUD should contain HP bar characters (█ or ░), got: %s", out)
+	}
+}
+
+// --- buildView new assertions ---
+
+func TestBuildView_NoKeyBar(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.mode = ModeWorld
+	out := buildView(m)
+	if strings.Contains(out, "↑↓←→/wasd move") {
+		t.Error("buildView should NOT contain key-bar text '↑↓←→/wasd move'")
+	}
+}
+
+func TestBuildView_HelpPanelShown(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.showHelpPanel = true
+	buildOut := buildView(m)
+	helpOut := renderHelpPanel(m)
+	if buildOut != helpOut {
+		t.Error("buildView with showHelpPanel should return renderHelpPanel output")
+	}
+}
+
+// --- renderHelpPanel ---
+
+func TestRenderHelpPanel_HeightClamped(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 5
+	out := renderHelpPanel(m)
+	lines := strings.Split(out, "\n")
+	if len(lines) > 5 {
+		t.Errorf("help panel should have ≤ 5 lines, got %d", len(lines))
+	}
+}
+
+func TestRenderHelpPanel_LocalBindings(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 40
+	m.mode = ModeLocal
+	out := renderHelpPanel(m)
+	if !strings.Contains(out, "g") {
+		t.Error("local help panel should contain 'g' binding")
+	}
+	if !strings.Contains(out, "i") {
+		t.Error("local help panel should contain 'i' binding")
 	}
 }
 

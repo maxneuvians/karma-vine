@@ -161,12 +161,12 @@ func TestFindSpawnPoint_BlockedCentre(t *testing.T) {
 func TestHandleKey_ToggleSidebar(t *testing.T) {
 	m := NewModel()
 	m.showSidebar = false
-	result, cmd := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, m)
+	result, cmd := handleKey(tea.KeyPressMsg{Code: '\\', Text: "\\"}, m)
 	if !result.showSidebar {
-		t.Fatal("? key should set showSidebar to true")
+		t.Fatal("\\ key should set showSidebar to true")
 	}
 	if cmd != nil {
-		t.Fatal("? key should return nil cmd")
+		t.Fatal("\\ key should return nil cmd")
 	}
 }
 
@@ -463,13 +463,13 @@ func TestHandleKey_Picker_MovementBlockedWhileOpen(t *testing.T) {
 func TestHandleKey_QuestionMark_ClosesPicker(t *testing.T) {
 	m := NewModel()
 	m.showMapPicker = true
-	m.showSidebar = false
+	m.showHelpPanel = false
 	result, _ := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, m)
 	if result.showMapPicker {
-		t.Fatal("?: showMapPicker should be false when sidebar opened")
+		t.Fatal("?: showMapPicker should be false when help opened")
 	}
-	if !result.showSidebar {
-		t.Fatal("?: showSidebar should be true")
+	if !result.showHelpPanel {
+		t.Fatal("?: showHelpPanel should be true")
 	}
 }
 
@@ -1292,5 +1292,41 @@ func TestHandleKey_EnterQuitsOnDefeat(t *testing.T) {
 	_, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if cmd == nil {
 		t.Fatal("enter on defeat: expected non-nil quit command")
+	}
+}
+
+// --- Help panel toggle ---
+
+func TestHandleKey_QuestionMarkTogglesHelpPanel(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenNormal
+	m.showHelpPanel = false
+	result, _ := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, m)
+	if !result.showHelpPanel {
+		t.Fatal("? should toggle showHelpPanel to true")
+	}
+	result2, _ := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, result)
+	if result2.showHelpPanel {
+		t.Fatal("? should toggle showHelpPanel back to false")
+	}
+}
+
+func TestHandleKey_QuestionMarkSuppressedInInventory(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.showHelpPanel = false
+	result, _ := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, m)
+	if result.showHelpPanel {
+		t.Fatal("? in ScreenInventory should not toggle showHelpPanel")
+	}
+}
+
+func TestHandleKey_BackslashTogglesSidebar(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenNormal
+	m.showSidebar = false
+	result, _ := handleKey(tea.KeyPressMsg{Code: '\\', Text: "\\"}, m)
+	if !result.showSidebar {
+		t.Fatal("\\ should toggle showSidebar to true")
 	}
 }

@@ -171,3 +171,16 @@ func TestBuildPlayerCombatant_BaseStats(t *testing.T) {
 		t.Fatalf("player Initiative should be 5, got %d", c.Initiative)
 	}
 }
+
+func TestBuildPlayerCombatant_UsesModelHP(t *testing.T) {
+	m := NewModel()
+	m.playerHP = 15
+	m.playerMaxHP = 20
+	c := buildPlayerCombatant(m)
+	if c.HP != 15 {
+		t.Fatalf("buildPlayerCombatant should use m.playerHP: expected 15, got %d", c.HP)
+	}
+	if c.MaxHP != 20 {
+		t.Fatalf("buildPlayerCombatant should use m.playerMaxHP: expected 20, got %d", c.MaxHP)
+	}
+}

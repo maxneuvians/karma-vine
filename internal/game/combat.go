@@ -56,8 +56,8 @@ func buildEnemyCombatant(a Animal) Combatant {
 func buildPlayerCombatant(m Model) Combatant {
 	c := Combatant{
 		Name:      "Player",
-		HP:        20,
-		MaxHP:     20,
+		HP:        m.playerHP,
+		MaxHP:     m.playerMaxHP,
 		Armour:    0,
 		MinDamage: 1,
 		MaxDamage: 3,

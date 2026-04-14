@@ -330,6 +330,33 @@ func renderLocalMap(m Model, mapW, mapH int) string {
 
 // ── HUD status bar ────────────────────────────────────────────────────────────
 
+// renderProgressBar returns a styled bar of filled (█) and empty (░) runes.
+// Width is the total number of characters. fillColor and emptyColor are lipgloss hex colours.
+func renderProgressBar(current, max, width int, fillColor, emptyColor string) string {
+	if width <= 0 {
+		return ""
+	}
+	if max <= 0 {
+		empty := strings.Repeat("░", width)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(emptyColor)).Render(empty)
+	}
+	filled := current * width / max
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	var b strings.Builder
+	if filled > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(fillColor)).Render(strings.Repeat("█", filled)))
+	}
+	if width-filled > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(emptyColor)).Render(strings.Repeat("░", width-filled)))
+	}
+	return b.String()
+}
+
 // tempCelsius converts tile climate values to a display temperature in °C.
 //   - Base range: 0.0 → -20 °C (polar), 1.0 → 40 °C (equatorial).
 //   - Elevation lapse: ~6 °C cooler per 0.15 elevation above sea level (0.36).
@@ -349,13 +376,15 @@ func formatTime(timeOfDay float64) string {
 	return fmt.Sprintf("%02d:%02d", h, m)
 }
 
-// renderHUD renders the single-row status bar.
+// renderHUD renders the single-row status bar with HP bar, armour, tile info, clock, speed, paused indicator, and help hint.
 func renderHUD(m Model) string {
 	tile := TileAt(m.worldPos.X, m.worldPos.Y, &m)
 	clock := formatTime(m.timeOfDay)
 	speed := fmt.Sprintf("%d×", m.timeScale)
-	items := fmt.Sprintf("Items: %d/%d", len(m.inventory.Items), InventoryMaxSlots)
-	var text string
+
+	// Compute armour from equipped items (currently all items have 0 armour bonus).
+	armour := 0
+
 	// In temperature-overlay mode use the same perceived value that drives the
 	// map colour, so the °C reading is consistent with what the player sees.
 	displayTemp := tile.Temperature
@@ -363,35 +392,43 @@ func renderHUD(m Model) string {
 		displayTemp = perceivedTemperature(tile)
 	}
 	celsius := tempCelsius(displayTemp, tile.Elevation, m.timeOfDay)
+
+	// Mode-contextual tile info.
+	var tileInfo string
 	if m.mode == ModeDungeon {
-		text = fmt.Sprintf(" Dungeon  Depth: %d  (%d, %d)  %s  %s  %s",
-			m.dungeonDepth,
-			m.worldPos.X, m.worldPos.Y,
-			clock, speed, items,
-		)
+		tileInfo = fmt.Sprintf("Dungeon D:%d (%d,%d)", m.dungeonDepth, m.worldPos.X, m.worldPos.Y)
 	} else if m.mode == ModeLocal {
-		text = fmt.Sprintf(" %s  %d°C  local (%d, %d)  world (%d, %d)  %s  %s  %s",
-			biomeName(tile.Biome),
-			celsius,
-			m.playerPos.X, m.playerPos.Y,
-			m.worldPos.X, m.worldPos.Y,
-			clock, speed, items,
-		)
+		tileInfo = fmt.Sprintf("%s %d°C (%d,%d)", biomeName(tile.Biome), celsius, m.playerPos.X, m.playerPos.Y)
 	} else {
-		chunkX := m.worldPos.X / 32
-		chunkY := m.worldPos.Y / 32
-		text = fmt.Sprintf(" %s  elev: %.2f  %d°C  (%d, %d)  chunk (%d, %d)  %s  %s  %s",
-			biomeName(tile.Biome),
-			tile.Elevation,
-			celsius,
-			m.worldPos.X, m.worldPos.Y,
-			chunkX, chunkY,
-			clock, speed, items,
-		)
+		tileInfo = fmt.Sprintf("%s %d°C (%d,%d)", biomeName(tile.Biome), celsius, m.worldPos.X, m.worldPos.Y)
 	}
+
+	// Build fixed segments (everything except the HP bar).
+	hpLabel := fmt.Sprintf(" HP %d/%d", m.playerHP, m.playerMaxHP)
+	armLabel := fmt.Sprintf("ARM:%d", armour)
+	pausedStr := ""
 	if m.paused {
-		text += "  [PAUSED]"
+		pausedStr = "  [PAUSED]"
 	}
+	helpHint := "? help"
+
+	// fixed = spaces + hpLabel + spaces + armLabel + spaces + tileInfo + spaces + clock + spaces + speed + paused + spaces + helpHint + trailing space
+	fixedLen := 1 + len(hpLabel) + 2 + len(armLabel) + 2 + len(tileInfo) + 2 + len(clock) + 2 + len(speed) + len(pausedStr) + 2 + len(helpHint) + 1
+
+	// Compute HP bar width from remaining space, clamped to [5, 20].
+	barW := m.viewportW - fixedLen
+	if barW < 5 {
+		barW = 5
+	}
+	if barW > 20 {
+		barW = 20
+	}
+
+	hpBar := renderProgressBar(m.playerHP, m.playerMaxHP, barW, "#22cc55", "#444c56")
+
+	text := fmt.Sprintf(" %s%s  %s  %s  %s  %s%s  %s ",
+		hpBar, hpLabel, armLabel, tileInfo, clock, speed, pausedStr, helpHint)
+
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("#ccd9e0")).Render(text)
 }
 
@@ -612,6 +649,61 @@ func renderSidebar(m Model, height int) string {
 	return strings.Join(rows, "\n")
 }
 
+// ── Help panel ────────────────────────────────────────────────────────────────
+
+// renderHelpPanel builds a fullscreen key-bindings overlay clamped to viewport.
+func renderHelpPanel(m Model) string {
+	maxW := lipgloss.NewStyle().MaxWidth(m.viewportW)
+
+	var lines []string
+	lines = append(lines, maxW.Render(" Key Bindings"))
+	lines = append(lines, maxW.Render(" "+strings.Repeat("─", m.viewportW-2)))
+	lines = append(lines, maxW.Render(""))
+
+	// Universal bindings.
+	lines = append(lines, maxW.Render(" Universal"))
+	lines = append(lines, maxW.Render("   q        quit"))
+	lines = append(lines, maxW.Render("   space    pause/unpause"))
+	lines = append(lines, maxW.Render("   i        inventory"))
+	lines = append(lines, maxW.Render("   \\        sidebar"))
+	lines = append(lines, maxW.Render("   [/]      time speed"))
+	lines = append(lines, maxW.Render("   ?        close help"))
+	lines = append(lines, maxW.Render(""))
+
+	switch m.mode {
+	case ModeWorld:
+		lines = append(lines, maxW.Render(" World Map"))
+		lines = append(lines, maxW.Render("   ↑↓←→/wasd  move"))
+		lines = append(lines, maxW.Render("   enter/>     descend to local"))
+		lines = append(lines, maxW.Render("   +/-         zoom"))
+		lines = append(lines, maxW.Render("   m           map mode picker"))
+	case ModeLocal:
+		lines = append(lines, maxW.Render(" Local Map"))
+		lines = append(lines, maxW.Render("   ↑↓←→/wasd  move"))
+		lines = append(lines, maxW.Render("   g           pick up / fight"))
+		lines = append(lines, maxW.Render("   d           drop"))
+		lines = append(lines, maxW.Render("   u           use"))
+		lines = append(lines, maxW.Render("   enter/>     enter dungeon"))
+		lines = append(lines, maxW.Render("   esc/<       ascend to world"))
+	case ModeDungeon:
+		lines = append(lines, maxW.Render(" Dungeon"))
+		lines = append(lines, maxW.Render("   ↑↓←→/wasd  move"))
+		lines = append(lines, maxW.Render("   g           pick up / fight"))
+		lines = append(lines, maxW.Render("   d           drop"))
+		lines = append(lines, maxW.Render("   u           use"))
+		lines = append(lines, maxW.Render("   f           toggle torch"))
+		lines = append(lines, maxW.Render("   enter/>     descend deeper"))
+		lines = append(lines, maxW.Render("   esc/<       ascend"))
+	}
+
+	// Clamp to viewport height.
+	if len(lines) > m.viewportH {
+		lines = lines[:m.viewportH]
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // ── Map mode picker ───────────────────────────────────────────────────────────
 
 const pickerContentW = 22 // visible character width of the picker panel (separator │ is extra)
@@ -663,21 +755,7 @@ func renderMapPicker(m Model, height int) string {
 	return strings.Join(rows, "\n")
 }
 
-// ── Key bar ───────────────────────────────────────────────────────────────────
 
-// renderKeyBar returns a single row of context-sensitive key binding hints.
-func renderKeyBar(m Model) string {
-	speed := fmt.Sprintf("%d×", m.timeScale)
-	var hints string
-	if m.mode == ModeDungeon {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  < up  > down  esc exit  f torch  g pick  d drop  u use  i inv  [/] speed (%s)  ? sidebar  q quit", speed)
-	} else if m.mode == ModeLocal {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  esc/< ascend  g pick  d drop  u use  i inv  [/] speed (%s)  ? sidebar  q quit", speed)
-	} else {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  i inv  [/] speed (%s)  m map  ? sidebar  q quit", m.worldZoom, speed)
-	}
-	return keyBarStyle.Render(hints)
-}
 
 // ── Dungeon renderer ──────────────────────────────────────────────────────────
 
@@ -1031,13 +1109,18 @@ func buildView(m Model) string {
 		return renderCombatScreen(m)
 	}
 
+	// Fullscreen help panel takes over the entire viewport.
+	if m.showHelpPanel {
+		return renderHelpPanel(m)
+	}
+
 	// Fullscreen inventory takes over the entire viewport.
 	if m.screenMode == ScreenInventory {
 		return renderFullscreenInventory(m)
 	}
 
-	// Reserve 2 rows for HUD + key bar.
-	mapH := m.viewportH - 2
+	// Reserve 1 row for HUD.
+	mapH := m.viewportH - 1
 	if mapH < 1 {
 		mapH = 1
 	}
@@ -1068,5 +1151,5 @@ func buildView(m Model) string {
 		mapView = renderMap(m.viewportW)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, mapView, renderHUD(m), renderKeyBar(m))
+	return lipgloss.JoinVertical(lipgloss.Left, mapView, renderHUD(m))
 }

@@ -240,3 +240,16 @@ func TestNewModel_EmptyInventory(t *testing.T) {
 	}
 }
 
+func TestNewModel_PlayerHP(t *testing.T) {
+	m := NewModel()
+	if m.playerHP != 20 {
+		t.Fatalf("NewModel: expected playerHP == 20, got %d", m.playerHP)
+	}
+	if m.playerMaxHP != 20 {
+		t.Fatalf("NewModel: expected playerMaxHP == 20, got %d", m.playerMaxHP)
+	}
+	if m.showHelpPanel {
+		t.Fatal("NewModel: expected showHelpPanel == false")
+	}
+}
+

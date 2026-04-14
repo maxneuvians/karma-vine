@@ -26,7 +26,7 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			m.showMapPicker = false
 		case "?":
 			m.showMapPicker = false
-			m.showSidebar = true
+			m.showHelpPanel = true
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
@@ -47,6 +47,7 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 						}
 					}
 				}
+				m.playerHP = m.combatState.Player.HP
 				m.screenMode = ScreenNormal
 				m.paused = false
 				m.combatState = nil
@@ -124,6 +125,12 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "?":
+		m.showHelpPanel = !m.showHelpPanel
+		if m.showHelpPanel {
+			m.showMapPicker = false
+		}
+
+	case "\\":
 		m.showSidebar = !m.showSidebar
 		if m.showSidebar {
 			m.showMapPicker = false
