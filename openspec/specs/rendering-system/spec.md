@@ -74,15 +74,26 @@ When rendering a local map cell, the effective dim factor for that cell SHALL be
 - **WHEN** `timeOfDay == 0.0` and a cell has `LitMap[x][y] == 0`
 - **THEN** the effective dim factor for that cell is `0.15` (ambient only)
 
+### Requirement: View() returns tea.View
+The `View()` method on `Model` SHALL return `tea.View` instead of `string`. The content SHALL be set via `tea.NewView(buildView(m))`. The returned `tea.View` SHALL have `AltScreen = true` and `MouseMode = tea.MouseModeCellMotion`. `buildView` itself continues to return a `string` and is unchanged in its signature.
+
+#### Scenario: View() wraps buildView output in tea.View
+- **WHEN** `View()` is called
+- **THEN** the returned `tea.View`'s content equals what `buildView` returns
+
 ### Requirement: buildView dispatches to dungeon render path
-The system SHALL extend `buildView` to dispatch to `renderDungeonMap` when `m.mode == ModeDungeon`. The dungeon render path SHALL compose the dungeon map with the HUD and optional key bar, matching the structure of the local map render path.
+The system SHALL extend `buildView` to dispatch on **both** `m.screenMode` and `m.mode`. When `m.screenMode == ScreenInventory`, `buildView` SHALL return `renderFullscreenInventory(m)` immediately, bypassing all other render paths. When `m.screenMode == ScreenNormal`, all existing dispatch logic (sidebar, map picker, local/dungeon/world map selection) is unchanged.
 
-#### Scenario: Dungeon map renders when mode is ModeDungeon
-- **WHEN** `buildView` is called with `m.mode == ModeDungeon`
-- **THEN** the returned string contains dungeon cell characters (`#`, `.`, `@`) and does not contain world-map tile characters
+#### Scenario: Dungeon map renders when mode is ModeDungeon and screenMode is ScreenNormal
+- **WHEN** `buildView` is called with `m.mode == ModeDungeon` and `m.screenMode == ScreenNormal`
+- **THEN** the returned string contains dungeon cell characters and does not contain world-map tile characters
 
-#### Scenario: HUD is present in dungeon view
-- **WHEN** `buildView` is called with `m.mode == ModeDungeon`
+#### Scenario: Fullscreen inventory renders when screenMode is ScreenInventory
+- **WHEN** `buildView` is called with `m.screenMode == ScreenInventory`
+- **THEN** the returned string contains "Inventory" and does not contain HUD depth/mode information
+
+#### Scenario: HUD is present in dungeon view when ScreenNormal
+- **WHEN** `buildView` is called with `m.mode == ModeDungeon` and `m.screenMode == ScreenNormal`
 - **THEN** the returned string contains the HUD status bar with dungeon depth information
 
 ### Requirement: renderSidebar dispatches on active mode
@@ -103,25 +114,27 @@ The system SHALL handle `tea.WindowSizeMsg` in `Update()`, storing `msg.Width` i
 - **WHEN** a `tea.WindowSizeMsg{Width: 120, Height: 40}` is dispatched
 - **THEN** `model.viewportW == 120` and `model.viewportH == 40` after the update
 
-### Requirement: Inventory panel is rendered as an overlay when open
-When `m.showInventory == true`, the system SHALL render a `renderInventoryPanel` overlay on top of the current map view. The panel SHALL:
-- Display a title line "Inventory"
-- List each item slot as `[N] ItemName (xCount)` or similar compact format
-- Highlight the row at `m.inventoryCursor` with a distinct background
-- Show "Empty" when `len(m.inventory.Items) == 0`
-- Be positioned consistently regardless of current game mode
+### Requirement: renderFullscreenInventory produces a full-viewport two-column layout
+The system SHALL implement `renderFullscreenInventory(m Model) string` in `render.go`. The function SHALL use `lipgloss.JoinHorizontal` to compose a left inventory column and a right ragdoll column, with the combined width equal to `m.viewportW` and height equal to `m.viewportH`.
 
-#### Scenario: Inventory panel shows when showInventory is true
-- **WHEN** `m.showInventory == true`
-- **THEN** the rendered output contains the text "Inventory"
+#### Scenario: Output fills viewport dimensions
+- **WHEN** `renderFullscreenInventory` is called with `viewportW=100, viewportH=30`
+- **THEN** the rendered string has exactly 29 newline characters
 
-#### Scenario: Inventory panel hidden when showInventory is false
-- **WHEN** `m.showInventory == false`
-- **THEN** the rendered output does NOT contain the inventory panel
+#### Scenario: Left column contains inventory item list
+- **WHEN** inventory has items
+- **THEN** the left column lists item names and counts
 
-#### Scenario: Empty inventory shows placeholder
-- **WHEN** `m.showInventory == true` and `len(m.inventory.Items) == 0`
-- **THEN** the rendered output contains "Empty"
+#### Scenario: Right column contains ragdoll slots
+- **WHEN** `renderFullscreenInventory` is called
+- **THEN** the right column contains "Head", "Chest", "Left Hand", "Right Hand", "Legs", and "Feet"
+
+### Requirement: Inventory panel side-column path removed
+The old `inventoryPanelW` side-column append in `buildView` (which reduced map width by `inventoryPanelW`) SHALL be removed. The inventory is now exclusively rendered via `renderFullscreenInventory`. The `inventoryPanelW` constant SHALL be removed.
+
+#### Scenario: Map renders at full width when ScreenNormal and no sidebar
+- **WHEN** `m.screenMode == ScreenNormal`, `showSidebar == false`, and `showMapPicker == false`
+- **THEN** the map is rendered at `m.viewportW` columns (not `m.viewportW - inventoryPanelW`)
 
 ### Requirement: HUD shows inventory item count
 The HUD row SHALL include the current inventory count in the format `Items: N/8` (where 8 = `InventoryMaxSlots`). This count SHALL be visible in all three modes when the HUD is displayed.

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // ── Colour dimming ───────────────────────────────────────────────────────────
@@ -813,9 +813,7 @@ func renderDungeonMap(m Model, mapW, mapH int) string {
 	return strings.Join(rows, "\n")
 }
 
-// ── Inventory panel ───────────────────────────────────────────────────────────
-
-const inventoryPanelW = 22
+// ── Inventory styles ──────────────────────────────────────────────────────────
 
 var (
 	invHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ccd9e0"))
@@ -824,44 +822,106 @@ var (
 	invEmptyStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#768390"))
 )
 
-// renderInventoryPanel returns a fixed-width overlay panel listing inventory items.
-func renderInventoryPanel(m Model) string {
-	pad := func(s string) string {
-		return lipgloss.NewStyle().Width(inventoryPanelW).Render(s)
-	}
+// ── Fullscreen Inventory ──────────────────────────────────────────────────────
 
-	var lines []string
-	lines = append(lines,
-		pad(invHeaderStyle.Render(" Inventory")),
-		pad(sidebarSubStyle.Render(" "+strings.Repeat("─", 20))),
+// ragdoll is the ASCII body outline for the equipment panel.
+var ragdoll = []string{
+	"    ~O~    ",
+	"    /|\\    ",
+	"   / | \\   ",
+	"     |     ",
+	"    / \\    ",
+	"   /   \\   ",
+}
+
+// equipSlots lists the named equipment positions.
+var equipSlots = []string{"Head", "Chest", "Left Hand", "Right Hand", "Legs", "Feet"}
+
+// renderFullscreenInventory fills the entire viewport with a two-column inventory layout.
+func renderFullscreenInventory(m Model) string {
+	leftW := m.viewportW * 60 / 100
+	if leftW < 20 {
+		leftW = 20
+	}
+	rightW := m.viewportW - leftW
+
+	// ── Left column: item list ──
+	var leftLines []string
+	leftLines = append(leftLines,
+		invHeaderStyle.Render(" Inventory"),
+		sidebarSubStyle.Render(" "+strings.Repeat("─", leftW-2)),
 	)
 
 	if len(m.inventory.Items) == 0 {
-		lines = append(lines, pad(invEmptyStyle.Render(" Empty")))
+		leftLines = append(leftLines, invEmptyStyle.Render(" Empty"))
 	} else {
 		for i, item := range m.inventory.Items {
 			icon := lipgloss.NewStyle().Foreground(lipgloss.Color(item.Color)).Render(string(item.Char))
-			label := fmt.Sprintf(" %s %s (x%d)", icon, item.Name, item.Count)
+			label := fmt.Sprintf(" %s %s  x%d", icon, item.Name, item.Count)
 			if i == m.inventoryCursor {
-				lines = append(lines, pad(invCursorStyle.Render(label)))
+				leftLines = append(leftLines, invCursorStyle.Render(label))
 			} else {
-				lines = append(lines, pad(invItemStyle.Render(label)))
+				leftLines = append(leftLines, invItemStyle.Render(label))
 			}
 		}
 	}
 
+	// Pad to viewportH-1, then add hint at bottom.
+	for len(leftLines) < m.viewportH-1 {
+		leftLines = append(leftLines, "")
+	}
 	hint := " i close  d drop  u use"
 	if m.mode == ModeWorld {
 		hint = " i close"
 	}
-	lines = append(lines, pad(sidebarSubStyle.Render(hint)))
-	return strings.Join(lines, "\n")
+	leftLines = leftLines[:m.viewportH-1]
+	leftLines = append(leftLines, sidebarSubStyle.Render(hint))
+
+	leftCol := lipgloss.NewStyle().Width(leftW).Height(m.viewportH).Render(strings.Join(leftLines, "\n"))
+
+	// ── Right column: ragdoll equipment ──
+	var rightLines []string
+	rightLines = append(rightLines,
+		invHeaderStyle.Render(" Equipment"),
+		sidebarSubStyle.Render(" "+strings.Repeat("─", rightW-2)),
+	)
+
+	// Centre ragdoll vertically: place it roughly 1/4 down from the top of the remaining space.
+	ragdollStart := (m.viewportH - len(ragdoll) - len(equipSlots) - 2) / 4
+	if ragdollStart < 0 {
+		ragdollStart = 0
+	}
+	for i := 0; i < ragdollStart; i++ {
+		rightLines = append(rightLines, "")
+	}
+	for _, line := range ragdoll {
+		rightLines = append(rightLines, line)
+	}
+	rightLines = append(rightLines, "")
+	for _, slot := range equipSlots {
+		rightLines = append(rightLines, fmt.Sprintf(" %-11s: [ Empty ]", slot))
+	}
+
+	// Pad to viewportH.
+	for len(rightLines) < m.viewportH {
+		rightLines = append(rightLines, "")
+	}
+	rightLines = rightLines[:m.viewportH]
+
+	rightCol := lipgloss.NewStyle().Width(rightW).Height(m.viewportH).Render(strings.Join(rightLines, "\n"))
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 }
 
 // ── View composition ──────────────────────────────────────────────────────────
 
 // buildView composes the full terminal view: optional sidebar | map, HUD, key bar.
 func buildView(m Model) string {
+	// Fullscreen inventory takes over the entire viewport.
+	if m.screenMode == ScreenInventory {
+		return renderFullscreenInventory(m)
+	}
+
 	// Reserve 2 rows for HUD + key bar.
 	mapH := m.viewportH - 2
 	if mapH < 1 {
@@ -878,14 +938,7 @@ func buildView(m Model) string {
 	}
 
 	var mapView string
-	if m.showInventory {
-		mapW := m.viewportW - inventoryPanelW
-		if mapW < 10 {
-			mapW = 10
-		}
-		invPanel := renderInventoryPanel(m)
-		mapView = lipgloss.JoinHorizontal(lipgloss.Top, renderMap(mapW), invPanel)
-	} else if m.showSidebar {
+	if m.showSidebar {
 		mapW := m.viewportW - sidebarContentW - 1 // -1 for the │ separator column
 		if mapW < 10 {
 			mapW = 10

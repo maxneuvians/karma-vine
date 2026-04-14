@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // --- dimFactor ---
@@ -86,7 +86,7 @@ func TestUpdate_WindowSizeMsg(t *testing.T) {
 
 func TestUpdate_TimeScaleIncrease(t *testing.T) {
 	m := NewModel() // timeScale starts at 1
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	next, _ := m.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
 	nm := next.(Model)
 	if nm.timeScale != 2 {
 		t.Fatalf("timeScale after ] = %d, want 2", nm.timeScale)
@@ -96,7 +96,7 @@ func TestUpdate_TimeScaleIncrease(t *testing.T) {
 func TestUpdate_TimeScaleDecrease(t *testing.T) {
 	m := NewModel()
 	m.timeScale = 5
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
+	next, _ := m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
 	nm := next.(Model)
 	if nm.timeScale != 2 {
 		t.Fatalf("timeScale after [ = %d, want 2", nm.timeScale)
@@ -106,7 +106,7 @@ func TestUpdate_TimeScaleDecrease(t *testing.T) {
 func TestUpdate_TimeScaleClampedMax(t *testing.T) {
 	m := NewModel()
 	m.timeScale = 10
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	next, _ := m.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
 	nm := next.(Model)
 	if nm.timeScale != 10 {
 		t.Fatalf("timeScale clamped max: got %d, want 10", nm.timeScale)
@@ -892,38 +892,6 @@ func TestRenderSidebar_WorldTemperatureMode(t *testing.T) {
 	}
 }
 
-// 7.16 Inventory panel renders "Inventory" title and "Empty" when no items.
-func TestRenderInventoryPanel_EmptyInventory(t *testing.T) {
-	m := NewModel()
-	m.showInventory = true
-	out := renderInventoryPanel(m)
-	if !strings.Contains(out, "Inventory") {
-		t.Errorf("panel should contain 'Inventory', got:\n%s", out)
-	}
-	if !strings.Contains(out, "Empty") {
-		t.Errorf("panel should contain 'Empty' when no items, got:\n%s", out)
-	}
-}
-
-func TestRenderInventoryPanel_WithItems(t *testing.T) {
-	m := NewModel()
-	m.showInventory = true
-	m.inventory.Items = []Item{
-		{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1},
-		{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 3},
-	}
-	out := renderInventoryPanel(m)
-	if !strings.Contains(out, "Axe") {
-		t.Errorf("panel should show 'Axe', got:\n%s", out)
-	}
-	if !strings.Contains(out, "Torch") {
-		t.Errorf("panel should show 'Torch', got:\n%s", out)
-	}
-	if strings.Contains(out, "Empty") {
-		t.Error("panel should not show 'Empty' when items present")
-	}
-}
-
 // 7.17 HUD contains item count string.
 func TestRenderHUD_ContainsItemCount(t *testing.T) {
 	m := NewModel()
@@ -938,6 +906,65 @@ func TestRenderHUD_ContainsItemCount(t *testing.T) {
 	expected := fmt.Sprintf("Items: %d/%d", 2, InventoryMaxSlots)
 	if !strings.Contains(out, expected) {
 		t.Errorf("HUD should contain %q, got:\n%s", expected, out)
+	}
+}
+
+// ── Fullscreen Inventory tests ────────────────────────────────────────────────
+
+// 8.9 renderFullscreenInventory contains expected labels.
+func TestRenderFullscreenInventory_Labels(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenInventory
+	out := renderFullscreenInventory(m)
+	for _, label := range []string{"Inventory", "Head", "Chest", "Left Hand"} {
+		if !strings.Contains(out, label) {
+			t.Errorf("fullscreen inventory should contain %q", label)
+		}
+	}
+}
+
+// 8.10 renderFullscreenInventory shows Empty when no items.
+func TestRenderFullscreenInventory_Empty(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 100
+	m.viewportH = 30
+	m.screenMode = ScreenInventory
+	out := renderFullscreenInventory(m)
+	if !strings.Contains(out, "Empty") {
+		t.Error("fullscreen inventory should show 'Empty' when no items")
+	}
+}
+
+// 8.11 buildView returns fullscreen inventory when ScreenInventory.
+func TestBuildView_ScreenInventory(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenInventory
+	out := buildView(m)
+	if !strings.Contains(out, "Inventory") {
+		t.Error("buildView with ScreenInventory should contain 'Inventory'")
+	}
+	if !strings.Contains(out, "Head") {
+		t.Error("buildView with ScreenInventory should contain ragdoll slots")
+	}
+}
+
+// 8.12 buildView returns normal map when ScreenNormal.
+func TestBuildView_ScreenNormal(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.mode = ModeWorld
+	m.screenMode = ScreenNormal
+	out := buildView(m)
+	if out == "" {
+		t.Fatal("buildView ScreenNormal should not be empty")
+	}
+	if strings.Contains(out, "Equipment") {
+		t.Error("buildView ScreenNormal should not contain fullscreen inventory")
 	}
 }
 

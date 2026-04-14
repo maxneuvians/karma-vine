@@ -3,7 +3,7 @@ package game
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // --- NewModel ---
@@ -49,7 +49,7 @@ func TestModel_Init_ReturnsTickCmd(t *testing.T) {
 
 func TestModel_Update_QuitOnQ(t *testing.T) {
 	m := NewModel()
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if cmd == nil {
 		t.Fatal("Update 'q': expected a non-nil quit command")
 	}
@@ -57,7 +57,7 @@ func TestModel_Update_QuitOnQ(t *testing.T) {
 
 func TestModel_Update_QuitOnCtrlC(t *testing.T) {
 	m := NewModel()
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
 		t.Fatal("Update ctrl+c: expected a non-nil quit command")
 	}
@@ -65,7 +65,7 @@ func TestModel_Update_QuitOnCtrlC(t *testing.T) {
 
 func TestModel_Update_UnknownKeyNoOp(t *testing.T) {
 	m := NewModel()
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if cmd != nil {
 		t.Fatal("Update unknown key: expected nil cmd")
 	}
@@ -78,7 +78,7 @@ func TestModel_Update_UnknownKeyNoOp(t *testing.T) {
 
 func TestModel_View_NonEmpty(t *testing.T) {
 	m := NewModel()
-	if v := m.View(); v == "" {
+	if v := m.View(); v.Content == "" {
 		t.Fatal("View: returned empty string")
 	}
 }
@@ -113,8 +113,8 @@ func TestModel_View_WithViewport(t *testing.T) {
 	m.viewportW = 80
 	m.viewportH = 24
 	out := m.View()
-	if out == "" || out == "World Explorer — loading..." {
-		t.Fatalf("View with non-zero viewport returned unexpected: %q", out)
+	if out.Content == "" || out.Content == "World Explorer \u2014 loading..." {
+		t.Fatalf("View with non-zero viewport returned unexpected: %q", out.Content)
 	}
 }
 
@@ -168,7 +168,7 @@ func TestNewModel_EmptyInventory(t *testing.T) {
 	if len(m.inventory.Items) != 0 {
 		t.Fatalf("NewModel: expected 0 items, got %d", len(m.inventory.Items))
 	}
-	if m.showInventory {
+	if m.screenMode == ScreenInventory {
 		t.Fatal("NewModel: showInventory should be false")
 	}
 	if m.inventoryCursor != 0 {

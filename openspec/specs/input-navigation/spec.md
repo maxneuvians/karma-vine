@@ -1,14 +1,14 @@
 ## Requirements
 
 ### Requirement: Arrow keys and WASD move the player
-The system SHALL handle `up`/`w`, `down`/`s`, `left`/`a`, `right`/`d` key messages. In `ModeWorld`, each shall increment/decrement `worldPos.X` or `worldPos.Y` by 1, **unless `showMapPicker == true`**, in which case `up` and `down` SHALL instead move `mapPickerCursor` by -1 or +1 respectively (clamped to `[0, 3]`), and `left`/`right`/`a`/`d`/`w`/`s` SHALL be no-ops. In `ModeLocal`, each shall move `playerPos` by 1 in the corresponding axis, subject to bounds and collision rules (unchanged; map picker is world-only).
+The system SHALL handle `up`/`w`, `down`/`s`, `left`/`a`, `right`/`d` key messages. In `ModeWorld`, each shall increment/decrement `worldPos.X` or `worldPos.Y` by 1, **unless `showMapPicker == true`**, in which case `up` and `down` SHALL instead move `mapPickerCursor` by -1 or +1 respectively (clamped to `[0, 3]`), and `left`/`right`/`a`/`d`/`w`/`s` SHALL be no-ops. In `ModeLocal`, each shall move `playerPos` by 1 in the corresponding axis, subject to bounds and collision rules. **When `m.screenMode == ScreenInventory`**, `up`/`w` and `down`/`s` SHALL move `inventoryCursor` instead of the player or picker, and `left`/`right`/`a`/`d` SHALL be no-ops.
 
 #### Scenario: Arrow key moves player in ModeWorld
-- **WHEN** the player presses the right arrow key in `ModeWorld` and `showMapPicker == false`
+- **WHEN** the player presses the right arrow key in `ModeWorld` and `showMapPicker == false` and `screenMode == ScreenNormal`
 - **THEN** `worldPos.X` increases by 1
 
 #### Scenario: WASD moves player in ModeLocal
-- **WHEN** the player presses `s` (down) in `ModeLocal` and the cell below is passable
+- **WHEN** the player presses `s` (down) in `ModeLocal`, `screenMode == ScreenNormal`, and the cell below is passable
 - **THEN** `playerPos.Y` increases by 1
 
 #### Scenario: Player cannot move outside local map bounds
@@ -31,6 +31,10 @@ The system SHALL handle `up`/`w`, `down`/`s`, `left`/`a`, `right`/`d` key messag
 - **WHEN** `showMapPicker == true`, `mapPickerCursor == 0`, and the player presses `up`
 - **THEN** `mapPickerCursor` remains `0`
 
+#### Scenario: Up/down navigate inventory cursor when inventory is open
+- **WHEN** `screenMode == ScreenInventory` and the player presses `down`
+- **THEN** `inventoryCursor` increments (clamped at `len(inventory.Items)-1`) and `playerPos` is unchanged
+
 ### Requirement: Enter or > descends from world map to local map
 The system SHALL handle `enter` and `>` key messages. In `ModeWorld`, pressing either key SHALL: call `LocalMapFor` for the current `worldPos`, set `model.localMap` to the result, set `model.mode = ModeLocal`, and set `playerPos` to the first non-blocking cell scanning outward from `{21, 9}`.
 
@@ -43,10 +47,14 @@ The system SHALL handle `enter` and `>` key messages. In `ModeWorld`, pressing e
 - **THEN** `playerPos == {21, 9}`
 
 ### Requirement: Escape or < ascends from local map to world map
-The system SHALL handle `esc` and `<` key messages. In `ModeLocal`, pressing either key SHALL set `model.mode = ModeWorld`. `model.localMap` SHALL NOT be set to nil. This handler SHALL only fire when `m.mode == ModeLocal`; it SHALL NOT fire when `m.mode == ModeDungeon`.
+The system SHALL handle `esc` and `<` key messages. When `m.screenMode == ScreenInventory`, pressing `esc` SHALL set `m.screenMode = ScreenNormal` regardless of `m.mode`. When `m.screenMode == ScreenNormal`, in `ModeLocal`, pressing either key SHALL set `model.mode = ModeWorld`. `model.localMap` SHALL NOT be set to nil. This handler SHALL only fire when `m.mode == ModeLocal`; it SHALL NOT fire when `m.mode == ModeDungeon`.
+
+#### Scenario: esc closes inventory when ScreenInventory
+- **WHEN** `m.screenMode == ScreenInventory` and the player presses `esc`
+- **THEN** `m.screenMode == ScreenNormal` regardless of `m.mode`
 
 #### Scenario: Ascend returns to world map
-- **WHEN** the player presses `esc` in `ModeLocal`
+- **WHEN** `m.screenMode == ScreenNormal` and the player presses `esc` in `ModeLocal`
 - **THEN** `model.mode == ModeWorld` after the update
 
 #### Scenario: Local map is preserved in cache after ascend
@@ -145,16 +153,16 @@ The system SHALL handle the `d` key in `ModeLocal` and `ModeDungeon` to drop the
 - **WHEN** the player presses `d` in `ModeDungeon`
 - **THEN** the input handler calls the drop logic
 
-### Requirement: `i` toggles inventory panel in all modes
-The system SHALL handle the `i` key in all modes to toggle `m.showInventory`. When `m.showInventory` transitions from `true` to `false`, `m.inventoryCursor` SHALL be clamped to `[0, len(m.inventory.Items)-1]` (or 0 if empty).
+### Requirement: `i` key sets screenMode instead of toggling showInventory
+The `i` key handler SHALL set `m.screenMode = ScreenInventory` when `m.screenMode == ScreenNormal`, and `m.screenMode = ScreenNormal` when `m.screenMode == ScreenInventory`. The `showInventory bool` field SHALL no longer exist. The behavior is accessible from all modes.
 
-#### Scenario: `i` toggles showInventory
-- **WHEN** `m.showInventory == false` and the player presses `i`
-- **THEN** `m.showInventory == true`
+#### Scenario: `i` opens inventory from ScreenNormal
+- **WHEN** `m.screenMode == ScreenNormal` and the player presses `i`
+- **THEN** `m.screenMode == ScreenInventory`
 
-#### Scenario: Second `i` closes inventory
-- **WHEN** `m.showInventory == true` and the player presses `i`
-- **THEN** `m.showInventory == false`
+#### Scenario: `i` closes inventory from ScreenInventory
+- **WHEN** `m.screenMode == ScreenInventory` and the player presses `i`
+- **THEN** `m.screenMode == ScreenNormal`
 
 ### Requirement: `u` triggers item use in local and dungeon mode
 The system SHALL handle the `u` key in `ModeLocal` and `ModeDungeon` to attempt an item interaction. The key SHALL be ignored in `ModeWorld`.
@@ -164,8 +172,8 @@ The system SHALL handle the `u` key in `ModeLocal` and `ModeDungeon` to attempt 
 - **THEN** the input handler calls the item-use logic
 
 ### Requirement: Inventory cursor keys active while inventory is open
-When `m.showInventory == true`, the `up`/`w` and `down`/`s` directional keys SHALL move `m.inventoryCursor` instead of moving the player.
+When `m.screenMode == ScreenInventory`, the `up`/`w` and `down`/`s` directional keys SHALL move `m.inventoryCursor` instead of moving the player.
 
 #### Scenario: `up` moves cursor up when inventory open
-- **WHEN** `showInventory == true` and the player presses `up`
+- **WHEN** `screenMode == ScreenInventory` and the player presses `up`
 - **THEN** `inventoryCursor` decrements (clamped at 0) and player does not move

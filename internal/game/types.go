@@ -161,3 +161,11 @@ const (
 	MapModeElevation                  // elevation gradient overlay
 	MapModePolitical                  // contour line overlay
 )
+
+// ScreenMode controls which full-screen view is active.
+type ScreenMode int
+
+const (
+	ScreenNormal    ScreenMode = iota // normal map/HUD view
+	ScreenInventory                   // fullscreen inventory overlay
+)

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // 6.1 applyDelta in ModeWorld increments worldPos.
@@ -161,7 +161,7 @@ func TestFindSpawnPoint_BlockedCentre(t *testing.T) {
 func TestHandleKey_ToggleSidebar(t *testing.T) {
 	m := NewModel()
 	m.showSidebar = false
-	result, cmd := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}, m)
+	result, cmd := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, m)
 	if !result.showSidebar {
 		t.Fatal("? key should set showSidebar to true")
 	}
@@ -175,7 +175,7 @@ func TestHandleKey_WorldZoom_Plus(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.worldZoom = 4
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '+', Text: "+"}, m)
 	if result.worldZoom != 2 {
 		t.Errorf("+ in ModeWorld: worldZoom = %d, want 2", result.worldZoom)
 	}
@@ -186,7 +186,7 @@ func TestHandleKey_WorldZoom_Equals(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.worldZoom = 4
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("=")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '=', Text: "="}, m)
 	if result.worldZoom != 2 {
 		t.Errorf("= in ModeWorld: worldZoom = %d, want 2", result.worldZoom)
 	}
@@ -197,7 +197,7 @@ func TestHandleKey_WorldZoom_Minus(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.worldZoom = 2
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("-")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '-', Text: "-"}, m)
 	if result.worldZoom != 4 {
 		t.Errorf("- in ModeWorld: worldZoom = %d, want 4", result.worldZoom)
 	}
@@ -208,7 +208,7 @@ func TestHandleKey_WorldZoom_NotInLocalMode(t *testing.T) {
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
 	m.worldZoom = 1
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '+', Text: "+"}, m)
 	if result.worldZoom != 1 {
 		t.Errorf("+ in ModeLocal should not change worldZoom: got %d, want 1", result.worldZoom)
 	}
@@ -219,7 +219,7 @@ func TestHandleKey_WorldZoom_MinusNotInLocalMode(t *testing.T) {
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
 	m.worldZoom = 1
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("-")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '-', Text: "-"}, m)
 	if result.worldZoom != 1 {
 		t.Errorf("- in ModeLocal should not change worldZoom: got %d, want 1", result.worldZoom)
 	}
@@ -227,13 +227,13 @@ func TestHandleKey_WorldZoom_MinusNotInLocalMode(t *testing.T) {
 
 func TestHandleKey_Movement_ArrowKeys(t *testing.T) {
 	keys := []struct {
-		msg        tea.KeyMsg
+		msg        tea.KeyPressMsg
 		ddx, ddy   int
 	}{
-		{tea.KeyMsg{Type: tea.KeyUp}, 0, -1},
-		{tea.KeyMsg{Type: tea.KeyDown}, 0, 1},
-		{tea.KeyMsg{Type: tea.KeyLeft}, -1, 0},
-		{tea.KeyMsg{Type: tea.KeyRight}, 1, 0},
+		{tea.KeyPressMsg{Code: tea.KeyUp}, 0, -1},
+		{tea.KeyPressMsg{Code: tea.KeyDown}, 0, 1},
+		{tea.KeyPressMsg{Code: tea.KeyLeft}, -1, 0},
+		{tea.KeyPressMsg{Code: tea.KeyRight}, 1, 0},
 	}
 	for _, k := range keys {
 		m := NewModel()
@@ -263,7 +263,7 @@ func TestHandleKey_Movement_WASD(t *testing.T) {
 		m := NewModel()
 		m.mode = ModeWorld
 		m.worldPos = WorldCoord{X: 10, Y: 10}
-		result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k.ch)}, m)
+		result, _ := handleKey(tea.KeyPressMsg{Code: rune(k.ch[0]), Text: k.ch}, m)
 		wantX := 10 + k.ddx
 		wantY := 10 + k.ddy
 		if result.worldPos.X != wantX || result.worldPos.Y != wantY {
@@ -276,7 +276,7 @@ func TestHandleKey_Movement_WASD(t *testing.T) {
 func TestHandleKey_DescendToLocal_Enter(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
-	result, cmd := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if result.mode != ModeLocal {
 		t.Fatalf("enter in ModeWorld: mode = %d, want ModeLocal", result.mode)
 	}
@@ -291,7 +291,7 @@ func TestHandleKey_DescendToLocal_Enter(t *testing.T) {
 func TestHandleKey_DescendToLocal_GT(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(">")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '>', Text: ">"}, m)
 	if result.mode != ModeLocal {
 		t.Fatalf("> in ModeWorld: mode = %d, want ModeLocal", result.mode)
 	}
@@ -301,7 +301,7 @@ func TestHandleKey_DescendNoopInLocalMode(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if result.mode != ModeLocal {
 		t.Fatalf("enter in ModeLocal should stay ModeLocal, got %d", result.mode)
 	}
@@ -311,7 +311,7 @@ func TestHandleKey_AscendToWorld_Esc(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
 	if result.mode != ModeWorld {
 		t.Fatalf("esc in ModeLocal: mode = %d, want ModeWorld", result.mode)
 	}
@@ -321,7 +321,7 @@ func TestHandleKey_AscendToWorld_LT(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("<")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '<', Text: "<"}, m)
 	if result.mode != ModeWorld {
 		t.Fatalf("< in ModeLocal: mode = %d, want ModeWorld", result.mode)
 	}
@@ -330,7 +330,7 @@ func TestHandleKey_AscendToWorld_LT(t *testing.T) {
 func TestHandleKey_AscendNoopInWorldMode(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
 	if result.mode != ModeWorld {
 		t.Fatalf("esc in ModeWorld should stay ModeWorld, got %d", result.mode)
 	}
@@ -342,7 +342,7 @@ func TestHandleKey_M_OpensPickerInWorldMode(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.mapMode = MapModeElevation
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'm', Text: "m"}, m)
 	if !result.showMapPicker {
 		t.Fatal("m in ModeWorld: showMapPicker should be true")
 	}
@@ -359,7 +359,7 @@ func TestHandleKey_M_ClosesPickerWithoutChangingMode(t *testing.T) {
 	m.mode = ModeWorld
 	m.showMapPicker = true
 	m.mapMode = MapModeTemperature
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'm', Text: "m"}, m)
 	if result.showMapPicker {
 		t.Fatal("m with picker open: showMapPicker should be false")
 	}
@@ -372,7 +372,7 @@ func TestHandleKey_M_NoopInLocalMode(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'm', Text: "m"}, m)
 	if result.showMapPicker {
 		t.Fatal("m in ModeLocal should not open picker")
 	}
@@ -383,7 +383,7 @@ func TestHandleKey_Picker_EnterAppliesSelection(t *testing.T) {
 	m.mode = ModeWorld
 	m.showMapPicker = true
 	m.mapPickerCursor = int(MapModeElevation)
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if result.mapMode != MapModeElevation {
 		t.Errorf("enter in picker: mapMode = %d, want MapModeElevation", result.mapMode)
 	}
@@ -398,7 +398,7 @@ func TestHandleKey_Picker_EscCancels(t *testing.T) {
 	m.showMapPicker = true
 	m.mapMode = MapModeTemperature
 	m.mapPickerCursor = int(MapModeElevation)
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
 	if result.showMapPicker {
 		t.Fatal("esc in picker: showMapPicker should be false")
 	}
@@ -413,7 +413,7 @@ func TestHandleKey_Picker_UpDownMoveCursor(t *testing.T) {
 	m.showMapPicker = true
 	m.mapPickerCursor = 1
 
-	down, _ := handleKey(tea.KeyMsg{Type: tea.KeyDown}, m)
+	down, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, m)
 	if down.mapPickerCursor != 2 {
 		t.Errorf("down in picker: cursor = %d, want 2", down.mapPickerCursor)
 	}
@@ -421,7 +421,7 @@ func TestHandleKey_Picker_UpDownMoveCursor(t *testing.T) {
 		t.Error("down in picker: worldPos should not change")
 	}
 
-	up, _ := handleKey(tea.KeyMsg{Type: tea.KeyUp}, m)
+	up, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyUp}, m)
 	if up.mapPickerCursor != 0 {
 		t.Errorf("up in picker: cursor = %d, want 0", up.mapPickerCursor)
 	}
@@ -432,7 +432,7 @@ func TestHandleKey_Picker_CursorClampsAtBottom(t *testing.T) {
 	m.mode = ModeWorld
 	m.showMapPicker = true
 	m.mapPickerCursor = len(mapModeNames) - 1
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyDown}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, m)
 	if result.mapPickerCursor != len(mapModeNames)-1 {
 		t.Errorf("down at bottom: cursor = %d, want %d", result.mapPickerCursor, len(mapModeNames)-1)
 	}
@@ -443,7 +443,7 @@ func TestHandleKey_Picker_CursorClampsAtTop(t *testing.T) {
 	m.mode = ModeWorld
 	m.showMapPicker = true
 	m.mapPickerCursor = 0
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyUp}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyUp}, m)
 	if result.mapPickerCursor != 0 {
 		t.Errorf("up at top: cursor = %d, want 0", result.mapPickerCursor)
 	}
@@ -454,7 +454,7 @@ func TestHandleKey_Picker_MovementBlockedWhileOpen(t *testing.T) {
 	m.mode = ModeWorld
 	m.showMapPicker = true
 	m.worldPos = WorldCoord{X: 5, Y: 5}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRight}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyRight}, m)
 	if result.worldPos.X != 5 {
 		t.Errorf("right while picker open: worldPos.X = %d, want 5 (blocked)", result.worldPos.X)
 	}
@@ -464,7 +464,7 @@ func TestHandleKey_QuestionMark_ClosesPicker(t *testing.T) {
 	m := NewModel()
 	m.showMapPicker = true
 	m.showSidebar = false
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: '?', Text: "?"}, m)
 	if result.showMapPicker {
 		t.Fatal("?: showMapPicker should be false when sidebar opened")
 	}
@@ -477,7 +477,7 @@ func TestHandleKey_Enter_DescendsWhenPickerClosed(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.showMapPicker = false
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if result.mode != ModeLocal {
 		t.Fatalf("enter with picker closed: mode = %d, want ModeLocal", result.mode)
 	}
@@ -499,7 +499,7 @@ func dungeonReadyModel() Model {
 
 func TestHandleKey_DescendFromLocalToDungeon(t *testing.T) {
 	m := dungeonReadyModel()
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if result.mode != ModeDungeon {
 		t.Fatalf("enter on dungeon entrance: mode = %d, want ModeDungeon", result.mode)
 	}
@@ -513,11 +513,11 @@ func TestHandleKey_DescendFromLocalToDungeon(t *testing.T) {
 
 func TestHandleKey_AscendFromDepth1ReturnsToLocal(t *testing.T) {
 	m := dungeonReadyModel()
-	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	m, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if m.mode != ModeDungeon {
 		t.Fatalf("precondition: mode = %d, want ModeDungeon", m.mode)
 	}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
 	if result.mode != ModeLocal {
 		t.Fatalf("esc at depth 1: mode = %d, want ModeLocal", result.mode)
 	}
@@ -528,16 +528,16 @@ func TestHandleKey_AscendFromDepth1ReturnsToLocal(t *testing.T) {
 
 func TestHandleKey_AscendFromDeepLevel(t *testing.T) {
 	m := dungeonReadyModel()
-	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	m, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if !m.currentDungeon.HasDownStair {
 		t.Skip("generated level has no down-stair")
 	}
 	m.playerPos = m.currentDungeon.DownStair
-	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	m, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
 	if m.dungeonDepth != 2 {
 		t.Fatalf("dungeonDepth = %d, want 2", m.dungeonDepth)
 	}
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
 	if result.dungeonDepth != 1 {
 		t.Fatalf("dungeonDepth after ascend = %d, want 1", result.dungeonDepth)
 	}
@@ -548,8 +548,8 @@ func TestHandleKey_AscendFromDeepLevel(t *testing.T) {
 
 func TestHandleKey_EscInDungeonNeverSetsWorldMode(t *testing.T) {
 	m := dungeonReadyModel()
-	m, _ = handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	m, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
 	if result.mode == ModeWorld {
 		t.Fatal("esc in ModeDungeon should never set ModeWorld")
 	}
@@ -611,7 +611,7 @@ func TestPickup_LocalMap(t *testing.T) {
 	m.playerPos = LocalCoord{X: 5, Y: 5}
 	m.localMap.Objects[5][5] = &Object{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Pickupable: true}
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
 	if result.localMap.Objects[5][5] != nil {
 		t.Fatal("pickup should remove object from local map")
 	}
@@ -632,7 +632,7 @@ func TestPickup_Stacking(t *testing.T) {
 	m.inventory.Items = []Item{{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 1}}
 	m.localMap.Objects[5][5] = &Object{Char: '†', Color: "#e8c96a", Name: "Torch", Pickupable: true}
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
 	if len(result.inventory.Items) != 1 {
 		t.Fatalf("expected 1 slot (stacked), got %d", len(result.inventory.Items))
 	}
@@ -649,7 +649,7 @@ func TestPickup_NonPickupable(t *testing.T) {
 	m.playerPos = LocalCoord{X: 5, Y: 5}
 	m.localMap.Objects[5][5] = &Object{Char: '♣', Color: "#2d7a1f", Name: "Tree", Blocking: true, Pickupable: false}
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
 	if len(result.inventory.Items) != 0 {
 		t.Fatal("pickup should not pick up non-pickupable objects")
 	}
@@ -675,7 +675,7 @@ func TestPickup_FullInventory(t *testing.T) {
 	}
 	m.localMap.Objects[5][5] = &Object{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Pickupable: true}
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
 	if len(result.inventory.Items) != InventoryMaxSlots {
 		t.Fatalf("inventory should stay at %d, got %d", InventoryMaxSlots, len(result.inventory.Items))
 	}
@@ -691,10 +691,10 @@ func TestDrop_LocalMap(t *testing.T) {
 	m.localMap = &LocalMap{}
 	m.playerPos = LocalCoord{X: 5, Y: 5}
 	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
-	m.showInventory = true
+	m.screenMode = ScreenInventory
 	m.inventoryCursor = 0
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'd', Text: "d"}, m)
 	obj := result.localMap.Objects[5][5]
 	if obj == nil {
 		t.Fatal("drop should place object on player's cell")
@@ -714,10 +714,10 @@ func TestDrop_DecrementCount(t *testing.T) {
 	m.localMap = &LocalMap{}
 	m.playerPos = LocalCoord{X: 5, Y: 5}
 	m.inventory.Items = []Item{{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 2}}
-	m.showInventory = true
+	m.screenMode = ScreenInventory
 	m.inventoryCursor = 0
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'd', Text: "d"}, m)
 	if len(result.inventory.Items) != 1 {
 		t.Fatalf("expected 1 slot remaining, got %d", len(result.inventory.Items))
 	}
@@ -731,10 +731,10 @@ func TestDrop_IgnoredInWorldMode(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeWorld
 	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
-	m.showInventory = true
+	m.screenMode = ScreenInventory
 	m.inventoryCursor = 0
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'd', Text: "d"}, m)
 	if len(result.inventory.Items) != 1 {
 		t.Fatal("drop in ModeWorld should not remove items")
 	}
@@ -755,13 +755,13 @@ func TestToggleInventory(t *testing.T) {
 		}
 
 		// Toggle on.
-		result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")}, m)
-		if !result.showInventory {
+		result, _ := handleKey(tea.KeyPressMsg{Code: 'i', Text: "i"}, m)
+		if result.screenMode == ScreenNormal {
 			t.Fatalf("i should open inventory in mode %d", mode)
 		}
 		// Toggle off.
-		result, _ = handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")}, result)
-		if result.showInventory {
+		result, _ = handleKey(tea.KeyPressMsg{Code: 'i', Text: "i"}, result)
+		if result.screenMode == ScreenInventory {
 			t.Fatalf("second i should close inventory in mode %d", mode)
 		}
 	}
@@ -772,7 +772,7 @@ func TestInventoryCursor(t *testing.T) {
 	m := NewModel()
 	m.mode = ModeLocal
 	m.localMap = &LocalMap{}
-	m.showInventory = true
+	m.screenMode = ScreenInventory
 	m.inventory.Items = []Item{
 		{Name: "Axe", Count: 1},
 		{Name: "Torch", Count: 1},
@@ -781,7 +781,7 @@ func TestInventoryCursor(t *testing.T) {
 	m.inventoryCursor = 0
 
 	// Move down.
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyDown}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, m)
 	if result.inventoryCursor != 1 {
 		t.Fatalf("down: cursor = %d, want 1", result.inventoryCursor)
 	}
@@ -791,19 +791,19 @@ func TestInventoryCursor(t *testing.T) {
 	}
 
 	// Move down again.
-	result, _ = handleKey(tea.KeyMsg{Type: tea.KeyDown}, result)
+	result, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, result)
 	if result.inventoryCursor != 2 {
 		t.Fatalf("down: cursor = %d, want 2", result.inventoryCursor)
 	}
 
 	// Clamp at bottom.
-	result, _ = handleKey(tea.KeyMsg{Type: tea.KeyDown}, result)
+	result, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyDown}, result)
 	if result.inventoryCursor != 2 {
 		t.Fatalf("down at bottom: cursor = %d, want 2 (clamped)", result.inventoryCursor)
 	}
 
 	// Move up.
-	result, _ = handleKey(tea.KeyMsg{Type: tea.KeyUp}, result)
+	result, _ = handleKey(tea.KeyPressMsg{Code: tea.KeyUp}, result)
 	if result.inventoryCursor != 1 {
 		t.Fatalf("up: cursor = %d, want 1", result.inventoryCursor)
 	}
@@ -819,7 +819,7 @@ func TestUseAxe_ChopsTree(t *testing.T) {
 	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
 	m.inventoryCursor = 0
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'u', Text: "u"}, m)
 	if result.localMap.Objects[5][4] != nil {
 		t.Fatal("axe use should remove adjacent tree")
 	}
@@ -835,7 +835,7 @@ func TestUseAxe_NotConsumed(t *testing.T) {
 	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
 	m.inventoryCursor = 0
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'u', Text: "u"}, m)
 	if len(result.inventory.Items) != 1 || result.inventory.Items[0].Name != "Axe" || result.inventory.Items[0].Count != 1 {
 		t.Fatalf("axe should not be consumed, got %+v", result.inventory.Items)
 	}
@@ -850,9 +850,129 @@ func TestUseAxe_NoTarget(t *testing.T) {
 	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
 	m.inventoryCursor = 0
 
-	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")}, m)
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'u', Text: "u"}, m)
 	// Nothing should change.
 	if len(result.inventory.Items) != 1 {
 		t.Fatal("use with no target should not change inventory")
+	}
+}
+
+// ── ScreenMode tests ─────────────────────────────────────────────────────────
+
+// 8.2 NewModel starts in ScreenNormal.
+func TestNewModel_ScreenNormal(t *testing.T) {
+	m := NewModel()
+	if m.screenMode != ScreenNormal {
+		t.Fatalf("NewModel: expected ScreenNormal, got %d", m.screenMode)
+	}
+}
+
+// 8.3 i key toggles screenMode.
+func TestScreenMode_IKeyToggle(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'i', Text: "i"}, m)
+	if result.screenMode != ScreenInventory {
+		t.Fatal("first i should set ScreenInventory")
+	}
+	result, _ = handleKey(tea.KeyPressMsg{Code: 'i', Text: "i"}, result)
+	if result.screenMode != ScreenNormal {
+		t.Fatal("second i should return to ScreenNormal")
+	}
+}
+
+// 8.4 esc closes inventory.
+func TestScreenMode_EscClosesInventory(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEsc}, m)
+	if result.screenMode != ScreenNormal {
+		t.Fatal("esc should set ScreenNormal when in ScreenInventory")
+	}
+}
+
+// ── Mouse tests ──────────────────────────────────────────────────────────────
+
+// 8.5 Scroll wheel moves inventory cursor.
+func TestMouseWheel_InventoryCursor(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.inventory.Items = []Item{
+		{Name: "A", Count: 1},
+		{Name: "B", Count: 1},
+		{Name: "C", Count: 1},
+	}
+	m.inventoryCursor = 0
+
+	// Scroll down.
+	result, _ := handleMouseWheel(tea.MouseWheelMsg{Button: tea.MouseWheelDown}, m)
+	if result.inventoryCursor != 1 {
+		t.Fatalf("scroll down: cursor = %d, want 1", result.inventoryCursor)
+	}
+	// Scroll up.
+	result, _ = handleMouseWheel(tea.MouseWheelMsg{Button: tea.MouseWheelUp}, result)
+	if result.inventoryCursor != 0 {
+		t.Fatalf("scroll up: cursor = %d, want 0", result.inventoryCursor)
+	}
+	// Clamp at top.
+	result, _ = handleMouseWheel(tea.MouseWheelMsg{Button: tea.MouseWheelUp}, result)
+	if result.inventoryCursor != 0 {
+		t.Fatalf("scroll up clamped: cursor = %d, want 0", result.inventoryCursor)
+	}
+}
+
+// 8.6 Click on item row sets inventory cursor.
+func TestMouseClick_InventoryRow(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenInventory
+	m.viewportW = 120
+	m.viewportH = 40
+	m.inventory.Items = []Item{
+		{Name: "A", Count: 1},
+		{Name: "B", Count: 1},
+		{Name: "C", Count: 1},
+	}
+	m.inventoryCursor = 0
+
+	// Click on row 3 (Y=2 is header+separator, Y=3 is second item → row index 1).
+	result, _ := handleMouseClick(tea.MouseClickMsg{X: 5, Y: 3, Button: tea.MouseLeft}, m)
+	if result.inventoryCursor != 1 {
+		t.Fatalf("click on row 3: cursor = %d, want 1", result.inventoryCursor)
+	}
+}
+
+// 8.7 Click in ScreenNormal/ModeLocal moves player.
+func TestMouseClick_MovePlayer(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.screenMode = ScreenNormal
+	m.viewportW = 80
+	m.viewportH = 26
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 40, Y: 12}
+
+	// Click to the right of the player (screen centre is mapW/2=40, mapH/2=12).
+	// Click at screen X=41 → map X=41 → dx=1, dy=0 → step right.
+	result, _ := handleMouseClick(tea.MouseClickMsg{X: 41, Y: 12, Button: tea.MouseLeft}, m)
+	if result.playerPos.X != 41 {
+		t.Fatalf("click-to-move: playerPos.X = %d, want 41", result.playerPos.X)
+	}
+}
+
+// 8.8 Click ignored when sidebar open.
+func TestMouseClick_IgnoredWhenSidebarOpen(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.screenMode = ScreenNormal
+	m.viewportW = 80
+	m.viewportH = 26
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 40, Y: 12}
+	m.showSidebar = true
+
+	result, _ := handleMouseClick(tea.MouseClickMsg{X: 50, Y: 12, Button: tea.MouseLeft}, m)
+	if result.playerPos.X != 40 {
+		t.Fatalf("click with sidebar: playerPos.X = %d, want 40 (unchanged)", result.playerPos.X)
 	}
 }

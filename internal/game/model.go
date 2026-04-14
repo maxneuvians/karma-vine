@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Model is the top-level BubbleTea model for the world explorer.
@@ -30,8 +30,8 @@ type Model struct {
 	playerPos LocalCoord
 
 	// Inventory
-	inventory      Inventory
-	showInventory  bool
+	inventory       Inventory
+	screenMode      ScreenMode
 	inventoryCursor int
 
 	// UI
@@ -81,8 +81,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.viewportW = msg.Width
 		m.viewportH = msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return handleKey(msg, m)
+	case tea.MouseClickMsg:
+		return handleMouseClick(msg, m)
+	case tea.MouseWheelMsg:
+		return handleMouseWheel(msg, m)
 	case TickMsg:
 		// Advance time: at 10× speed one full day takes 30 s (60 ticks).
 		// Base rate (1×) is 600 ticks = 5 minutes per cycle.
@@ -96,9 +100,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	if m.viewportW == 0 || m.viewportH == 0 {
-		return "World Explorer — loading..."
+		return tea.NewView("World Explorer — loading...")
 	}
-	return buildView(m)
+	v := tea.NewView(buildView(m))
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }

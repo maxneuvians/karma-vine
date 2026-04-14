@@ -1,11 +1,11 @@
 package game
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // handleKey processes a key event and returns an updated Model and command.
-func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
+func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 	// While the map picker is open, arrow keys navigate the list instead of moving the player.
 	if m.showMapPicker {
 		switch msg.String() {
@@ -32,7 +32,7 @@ func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
 	}
 
 	// While the inventory panel is open, arrow keys navigate the cursor.
-	if m.showInventory {
+	if m.screenMode == ScreenInventory {
 		switch msg.String() {
 		case "up", "w":
 			if m.inventoryCursor > 0 {
@@ -43,7 +43,7 @@ func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
 				m.inventoryCursor++
 			}
 		case "i":
-			m.showInventory = false
+			m.screenMode = ScreenNormal
 			m = clampInventoryCursor(m)
 		case "d":
 			m = handleDrop(m)
@@ -54,7 +54,7 @@ func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "esc":
-			m.showInventory = false
+			m.screenMode = ScreenNormal
 			m = clampInventoryCursor(m)
 		}
 		return m, nil
@@ -162,9 +162,11 @@ func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
 
 	// Toggle inventory panel
 	case "i":
-		m.showInventory = !m.showInventory
-		if !m.showInventory {
+		if m.screenMode == ScreenInventory {
+			m.screenMode = ScreenNormal
 			m = clampInventoryCursor(m)
+		} else {
+			m.screenMode = ScreenInventory
 		}
 
 	// Pick up item
@@ -540,4 +542,130 @@ func useAxe(m Model) Model {
 		}
 	}
 	return m
+}
+
+// handleMouseClick processes a mouse click event.
+func handleMouseClick(msg tea.MouseClickMsg, m Model) (Model, tea.Cmd) {
+	if msg.Button != tea.MouseLeft {
+		return m, nil
+	}
+
+	mouse := msg.Mouse()
+
+	// In ScreenInventory, click on an item row to select it.
+	if m.screenMode == ScreenInventory {
+		// The item list starts at row 2 (header + separator).
+		row := mouse.Y - 2
+		if row >= 0 && row < len(m.inventory.Items) {
+			m.inventoryCursor = row
+		}
+		return m, nil
+	}
+
+	// In ScreenNormal, click-to-move on local/dungeon maps.
+	if m.screenMode != ScreenNormal {
+		return m, nil
+	}
+	if m.showSidebar || m.showMapPicker {
+		return m, nil
+	}
+	if m.mode != ModeLocal && m.mode != ModeDungeon {
+		return m, nil
+	}
+
+	mapH := m.viewportH - 2
+	if mapH < 1 {
+		mapH = 1
+	}
+	mapW := m.viewportW
+
+	// Compute camera origin (same logic as render functions).
+	var maxW, maxH int
+	if m.mode == ModeLocal {
+		if mapW > LocalMapW {
+			mapW = LocalMapW
+		}
+		if mapH > LocalMapH {
+			mapH = LocalMapH
+		}
+		maxW = LocalMapW
+		maxH = LocalMapH
+	} else {
+		if mapW > DungeonW {
+			mapW = DungeonW
+		}
+		if mapH > DungeonH {
+			mapH = DungeonH
+		}
+		maxW = DungeonW
+		maxH = DungeonH
+	}
+
+	camX := m.playerPos.X - mapW/2
+	camY := m.playerPos.Y - mapH/2
+	if camX < 0 {
+		camX = 0
+	}
+	if camY < 0 {
+		camY = 0
+	}
+	if camX > maxW-mapW {
+		camX = maxW - mapW
+	}
+	if camY > maxH-mapH {
+		camY = maxH - mapH
+	}
+
+	clickX := camX + mouse.X
+	clickY := camY + mouse.Y
+
+	dx := clickX - m.playerPos.X
+	dy := clickY - m.playerPos.Y
+	if dx == 0 && dy == 0 {
+		return m, nil
+	}
+
+	// Take one cardinal step toward the clicked cell.
+	absDx := dx
+	if absDx < 0 {
+		absDx = -absDx
+	}
+	absDy := dy
+	if absDy < 0 {
+		absDy = -absDy
+	}
+	var stepX, stepY int
+	if absDx >= absDy {
+		if dx > 0 {
+			stepX = 1
+		} else {
+			stepX = -1
+		}
+	} else {
+		if dy > 0 {
+			stepY = 1
+		} else {
+			stepY = -1
+		}
+	}
+
+	m = applyDelta(stepX, stepY, m)
+	return m, nil
+}
+
+// handleMouseWheel processes a mouse wheel event.
+func handleMouseWheel(msg tea.MouseWheelMsg, m Model) (Model, tea.Cmd) {
+	if m.screenMode != ScreenInventory {
+		return m, nil
+	}
+	if msg.Button == tea.MouseWheelUp {
+		if m.inventoryCursor > 0 {
+			m.inventoryCursor--
+		}
+	} else if msg.Button == tea.MouseWheelDown {
+		if m.inventoryCursor < len(m.inventory.Items)-1 {
+			m.inventoryCursor++
+		}
+	}
+	return m, nil
 }
