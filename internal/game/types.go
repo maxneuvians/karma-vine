@@ -43,12 +43,29 @@ type Ground struct {
 
 // Object is a world object occupying a local map cell (tree, rock, cactus, …).
 type Object struct {
-	Char     rune
-	Color    string
-	Blocking bool
-	Lit      bool   // true when the object emits light (torches/braziers in dungeons)
-	Name     string // human-readable label (e.g. "Tree", "Torch")
+	Char       rune
+	Color      string
+	Blocking   bool
+	Lit        bool   // true when the object emits light (torches/braziers in dungeons)
+	Name       string // human-readable label (e.g. "Tree", "Torch")
+	Pickupable bool   // true when the player can pick up this object
 }
+
+// Item is a carriable entity in the player's inventory.
+type Item struct {
+	Char  rune
+	Color string
+	Name  string
+	Count int
+}
+
+// Inventory holds the player's carried items.
+type Inventory struct {
+	Items []Item
+}
+
+// InventoryMaxSlots is the maximum number of distinct item stacks the player can carry.
+const InventoryMaxSlots = 8
 
 // Animal is a creature on the local map.
 type Animal struct {

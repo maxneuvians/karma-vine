@@ -9,6 +9,17 @@ import (
 
 const localNoiseScale = 0.12
 
+// axeSpawnChance is the probability of an axe appearing on a forested local map.
+const axeSpawnChance = 0.3
+
+// axeBiomes lists biomes that can spawn an axe.
+var axeBiomes = map[Biome]bool{
+	Forest:      true,
+	DenseForest: true,
+	Jungle:      true,
+	Taiga:       true,
+}
+
 // hash derives a deterministic float64 in [0, 1) from integer coordinates and
 // a seed. It uses the exact bit-manipulation formula from the brief.
 func hash(x, y, seed int) float64 {
@@ -371,6 +382,23 @@ func GenerateLocalMap(worldX, worldY, globalSeed int, biome Biome) *LocalMap {
 		if len(candidates) > 0 {
 			p := candidates[rng.Intn(len(candidates))]
 			lm.Objects[p.x][p.y] = &Object{Char: '>', Color: "#ff3333", Blocking: false, Name: "Dungeon Entrance"}
+		}
+	}
+
+	// Place an axe on forested local maps with a configurable probability.
+	if axeBiomes[biome] && rng.Float64() < axeSpawnChance {
+		type pos struct{ x, y int }
+		var candidates []pos
+		for x := 0; x < LocalMapW; x++ {
+			for y := 0; y < LocalMapH; y++ {
+				if lm.Ground[x][y].Passable && lm.Objects[x][y] == nil && !lm.Ground[x][y].HasFire {
+					candidates = append(candidates, pos{x, y})
+				}
+			}
+		}
+		if len(candidates) > 0 {
+			p := candidates[rng.Intn(len(candidates))]
+			lm.Objects[p.x][p.y] = &Object{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Blocking: false, Pickupable: true}
 		}
 	}
 

@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -597,5 +598,261 @@ func TestApplyDelta_DungeonMovesOverBrazier(t *testing.T) {
 	result := applyDelta(1, 0, m)
 	if result.playerPos.X != 6 {
 		t.Fatalf("movement over brazier: playerPos.X = %d, want 6", result.playerPos.X)
+	}
+}
+
+// ── Inventory input tests ────────────────────────────────────────────────────
+
+// 7.2 Pickup removes object from local map and adds item to inventory.
+func TestPickup_LocalMap(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Objects[5][5] = &Object{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Pickupable: true}
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	if result.localMap.Objects[5][5] != nil {
+		t.Fatal("pickup should remove object from local map")
+	}
+	if len(result.inventory.Items) != 1 {
+		t.Fatalf("expected 1 item in inventory, got %d", len(result.inventory.Items))
+	}
+	if result.inventory.Items[0].Name != "Axe" || result.inventory.Items[0].Count != 1 {
+		t.Fatalf("expected Axe x1, got %+v", result.inventory.Items[0])
+	}
+}
+
+// 7.3 Picking up same-named item stacks (increments Count).
+func TestPickup_Stacking(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.inventory.Items = []Item{{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 1}}
+	m.localMap.Objects[5][5] = &Object{Char: '†', Color: "#e8c96a", Name: "Torch", Pickupable: true}
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	if len(result.inventory.Items) != 1 {
+		t.Fatalf("expected 1 slot (stacked), got %d", len(result.inventory.Items))
+	}
+	if result.inventory.Items[0].Count != 2 {
+		t.Fatalf("expected Torch count 2, got %d", result.inventory.Items[0].Count)
+	}
+}
+
+// 7.4 Pickup ignored for non-pickupable objects.
+func TestPickup_NonPickupable(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Objects[5][5] = &Object{Char: '♣', Color: "#2d7a1f", Name: "Tree", Blocking: true, Pickupable: false}
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	if len(result.inventory.Items) != 0 {
+		t.Fatal("pickup should not pick up non-pickupable objects")
+	}
+	if result.localMap.Objects[5][5] == nil {
+		t.Fatal("non-pickupable object should remain on map")
+	}
+}
+
+// 7.5 Pickup rejected when inventory is full.
+func TestPickup_FullInventory(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	// Fill inventory with 8 different items.
+	for i := 0; i < InventoryMaxSlots; i++ {
+		m.inventory.Items = append(m.inventory.Items, Item{
+			Char:  rune('a' + i),
+			Color: "#ffffff",
+			Name:  fmt.Sprintf("Item%d", i),
+			Count: 1,
+		})
+	}
+	m.localMap.Objects[5][5] = &Object{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Pickupable: true}
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")}, m)
+	if len(result.inventory.Items) != InventoryMaxSlots {
+		t.Fatalf("inventory should stay at %d, got %d", InventoryMaxSlots, len(result.inventory.Items))
+	}
+	if result.localMap.Objects[5][5] == nil {
+		t.Fatal("object should remain on map when inventory full")
+	}
+}
+
+// 7.6 Drop places pickupable object on player's cell in local map.
+func TestDrop_LocalMap(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
+	m.showInventory = true
+	m.inventoryCursor = 0
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}, m)
+	obj := result.localMap.Objects[5][5]
+	if obj == nil {
+		t.Fatal("drop should place object on player's cell")
+	}
+	if obj.Name != "Axe" || !obj.Pickupable {
+		t.Fatalf("dropped object: Name=%q Pickupable=%v, want Axe true", obj.Name, obj.Pickupable)
+	}
+	if len(result.inventory.Items) != 0 {
+		t.Fatalf("expected 0 items after drop, got %d", len(result.inventory.Items))
+	}
+}
+
+// 7.7 Drop decrements item count; slot removed when count reaches zero.
+func TestDrop_DecrementCount(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.inventory.Items = []Item{{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 2}}
+	m.showInventory = true
+	m.inventoryCursor = 0
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}, m)
+	if len(result.inventory.Items) != 1 {
+		t.Fatalf("expected 1 slot remaining, got %d", len(result.inventory.Items))
+	}
+	if result.inventory.Items[0].Count != 1 {
+		t.Fatalf("expected Torch count 1, got %d", result.inventory.Items[0].Count)
+	}
+}
+
+// 7.8 Drop ignored in ModeWorld.
+func TestDrop_IgnoredInWorldMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
+	m.showInventory = true
+	m.inventoryCursor = 0
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")}, m)
+	if len(result.inventory.Items) != 1 {
+		t.Fatal("drop in ModeWorld should not remove items")
+	}
+}
+
+// 7.9 `i` toggles showInventory in all modes.
+func TestToggleInventory(t *testing.T) {
+	for _, mode := range []Mode{ModeWorld, ModeLocal, ModeDungeon} {
+		m := NewModel()
+		m.mode = mode
+		if mode == ModeLocal {
+			m.localMap = &LocalMap{}
+		} else if mode == ModeDungeon {
+			level := &DungeonLevel{}
+			level.Cells[5][5].Kind = CellFloor
+			m.currentDungeon = level
+			m.playerPos = LocalCoord{X: 5, Y: 5}
+		}
+
+		// Toggle on.
+		result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")}, m)
+		if !result.showInventory {
+			t.Fatalf("i should open inventory in mode %d", mode)
+		}
+		// Toggle off.
+		result, _ = handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")}, result)
+		if result.showInventory {
+			t.Fatalf("second i should close inventory in mode %d", mode)
+		}
+	}
+}
+
+// 7.10 Cursor keys move inventoryCursor when showInventory is true.
+func TestInventoryCursor(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.showInventory = true
+	m.inventory.Items = []Item{
+		{Name: "Axe", Count: 1},
+		{Name: "Torch", Count: 1},
+		{Name: "Brazier", Count: 1},
+	}
+	m.inventoryCursor = 0
+
+	// Move down.
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyDown}, m)
+	if result.inventoryCursor != 1 {
+		t.Fatalf("down: cursor = %d, want 1", result.inventoryCursor)
+	}
+	// Player should NOT move.
+	if result.playerPos != m.playerPos {
+		t.Fatal("down with inventory open should not move player")
+	}
+
+	// Move down again.
+	result, _ = handleKey(tea.KeyMsg{Type: tea.KeyDown}, result)
+	if result.inventoryCursor != 2 {
+		t.Fatalf("down: cursor = %d, want 2", result.inventoryCursor)
+	}
+
+	// Clamp at bottom.
+	result, _ = handleKey(tea.KeyMsg{Type: tea.KeyDown}, result)
+	if result.inventoryCursor != 2 {
+		t.Fatalf("down at bottom: cursor = %d, want 2 (clamped)", result.inventoryCursor)
+	}
+
+	// Move up.
+	result, _ = handleKey(tea.KeyMsg{Type: tea.KeyUp}, result)
+	if result.inventoryCursor != 1 {
+		t.Fatalf("up: cursor = %d, want 1", result.inventoryCursor)
+	}
+}
+
+// 7.11 Axe chops adjacent tree object (tree cell becomes nil).
+func TestUseAxe_ChopsTree(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Objects[5][4] = &Object{Char: '♣', Color: "#2d7a1f", Name: "Tree", Blocking: true}
+	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
+	m.inventoryCursor = 0
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")}, m)
+	if result.localMap.Objects[5][4] != nil {
+		t.Fatal("axe use should remove adjacent tree")
+	}
+}
+
+// 7.12 Axe use does not remove axe from inventory.
+func TestUseAxe_NotConsumed(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Objects[5][4] = &Object{Char: '♣', Color: "#2d7a1f", Name: "Tree", Blocking: true}
+	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
+	m.inventoryCursor = 0
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")}, m)
+	if len(result.inventory.Items) != 1 || result.inventory.Items[0].Name != "Axe" || result.inventory.Items[0].Count != 1 {
+		t.Fatalf("axe should not be consumed, got %+v", result.inventory.Items)
+	}
+}
+
+// 7.13 Use with no adjacent tree is a no-op.
+func TestUseAxe_NoTarget(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.inventory.Items = []Item{{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1}}
+	m.inventoryCursor = 0
+
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")}, m)
+	// Nothing should change.
+	if len(result.inventory.Items) != 1 {
+		t.Fatal("use with no target should not change inventory")
 	}
 }

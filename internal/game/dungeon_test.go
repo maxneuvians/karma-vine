@@ -134,3 +134,21 @@ func TestGenerateDungeonLevel_AllObjectsHaveNames(t *testing.T) {
 		}
 	}
 }
+
+// 7.14 All unlit torches and braziers generated in dungeon have Pickupable true.
+func TestGenerateDungeonLevel_UnlitTorchesPickupable(t *testing.T) {
+	level := GenerateDungeonLevel(42, 1, 1, 1, 5)
+	for x := 0; x < DungeonW; x++ {
+		for y := 0; y < DungeonH; y++ {
+			obj := level.Cells[x][y].Object
+			if obj == nil {
+				continue
+			}
+			if (obj.Char == '†' || obj.Char == 'Ω') && !obj.Lit {
+				if !obj.Pickupable {
+					t.Fatalf("unlit %q at (%d,%d) should have Pickupable=true", obj.Name, x, y)
+				}
+			}
+		}
+	}
+}

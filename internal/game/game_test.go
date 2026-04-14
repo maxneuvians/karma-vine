@@ -159,3 +159,20 @@ func TestModel_Update_TickMsg_TimeWraps(t *testing.T) {
 	}
 }
 
+// 7.1 New model has empty inventory.
+func TestNewModel_EmptyInventory(t *testing.T) {
+	m := NewModel()
+	if m.inventory.Items == nil {
+		t.Fatal("NewModel: inventory.Items should be non-nil empty slice")
+	}
+	if len(m.inventory.Items) != 0 {
+		t.Fatalf("NewModel: expected 0 items, got %d", len(m.inventory.Items))
+	}
+	if m.showInventory {
+		t.Fatal("NewModel: showInventory should be false")
+	}
+	if m.inventoryCursor != 0 {
+		t.Fatalf("NewModel: inventoryCursor should be 0, got %d", m.inventoryCursor)
+	}
+}
+

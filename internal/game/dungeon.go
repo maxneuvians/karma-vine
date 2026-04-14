@@ -172,7 +172,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 	})
 	for i := 0; i < torchCount && i < len(wallAdjacentFloor); i++ {
 		p := wallAdjacentFloor[i]
-		level.Cells[p.X][p.Y].Object = &Object{Char: '†', Color: "#e8c96a", Blocking: true, Name: "Torch"}
+		level.Cells[p.X][p.Y].Object = &Object{Char: '†', Color: "#e8c96a", Blocking: true, Name: "Torch", Pickupable: true}
 	}
 
 	// Place braziers on floor cells inside rooms (~1 per 6 rooms).
@@ -193,7 +193,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int) *DungeonLevel
 		if level.Cells[p.X][p.Y].Object != nil {
 			continue
 		}
-		level.Cells[p.X][p.Y].Object = &Object{Char: 'Ω', Color: "#e07030", Blocking: false, Name: "Brazier"}
+		level.Cells[p.X][p.Y].Object = &Object{Char: 'Ω', Color: "#e07030", Blocking: false, Name: "Brazier", Pickupable: true}
 		placed++
 	}
 

@@ -224,3 +224,47 @@ func TestGenerateLocalMap_DungeonEntranceHasName(t *testing.T) {
 	t.Fatal("no dungeon entrance found")
 }
 
+// 7.15 Forest local map may contain an axe with Pickupable true.
+func TestGenerateLocalMap_ForestMayContainAxe(t *testing.T) {
+	// Try multiple seeds to account for axeSpawnChance randomness.
+	foundAxe := false
+	for seed := 0; seed < 100; seed++ {
+		lm := GenerateLocalMap(seed, seed, seed, Forest)
+		for x := 0; x < LocalMapW; x++ {
+			for y := 0; y < LocalMapH; y++ {
+				obj := lm.Objects[x][y]
+				if obj != nil && obj.Name == "Axe" {
+					if !obj.Pickupable {
+						t.Fatalf("axe at (%d,%d) should have Pickupable=true", x, y)
+					}
+					foundAxe = true
+					break
+				}
+			}
+			if foundAxe {
+				break
+			}
+		}
+		if foundAxe {
+			break
+		}
+	}
+	if !foundAxe {
+		t.Fatal("expected at least one axe across 100 forest maps")
+	}
+}
+
+// 7.15b Non-forest maps do not contain an axe.
+func TestGenerateLocalMap_DesertNoAxe(t *testing.T) {
+	for seed := 0; seed < 20; seed++ {
+		lm := GenerateLocalMap(seed, seed, seed, Desert)
+		for x := 0; x < LocalMapW; x++ {
+			for y := 0; y < LocalMapH; y++ {
+				if obj := lm.Objects[x][y]; obj != nil && obj.Name == "Axe" {
+					t.Fatalf("desert map (seed %d) should not contain an axe", seed)
+				}
+			}
+		}
+	}
+}
+

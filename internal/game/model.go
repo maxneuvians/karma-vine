@@ -29,6 +29,11 @@ type Model struct {
 	// Player
 	playerPos LocalCoord
 
+	// Inventory
+	inventory      Inventory
+	showInventory  bool
+	inventoryCursor int
+
 	// UI
 	viewportW       int
 	viewportH       int
@@ -52,6 +57,7 @@ func NewModel() Model {
 		localCache:   make(map[WorldCoord]*LocalMap),
 		dungeonCache: make(map[dungeonKey]*DungeonLevel),
 		dungeonMeta:  make(map[WorldCoord]DungeonMeta),
+		inventory:    Inventory{Items: []Item{}},
 		timeOfDay:    0.25, // start at 6 AM
 		timeScale:    1,
 		worldZoom:    1,

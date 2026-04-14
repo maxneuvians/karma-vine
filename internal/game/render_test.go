@@ -892,3 +892,52 @@ func TestRenderSidebar_WorldTemperatureMode(t *testing.T) {
 	}
 }
 
+// 7.16 Inventory panel renders "Inventory" title and "Empty" when no items.
+func TestRenderInventoryPanel_EmptyInventory(t *testing.T) {
+	m := NewModel()
+	m.showInventory = true
+	out := renderInventoryPanel(m)
+	if !strings.Contains(out, "Inventory") {
+		t.Errorf("panel should contain 'Inventory', got:\n%s", out)
+	}
+	if !strings.Contains(out, "Empty") {
+		t.Errorf("panel should contain 'Empty' when no items, got:\n%s", out)
+	}
+}
+
+func TestRenderInventoryPanel_WithItems(t *testing.T) {
+	m := NewModel()
+	m.showInventory = true
+	m.inventory.Items = []Item{
+		{Char: '⚒', Color: "#a0a0a0", Name: "Axe", Count: 1},
+		{Char: '†', Color: "#e8c96a", Name: "Torch", Count: 3},
+	}
+	out := renderInventoryPanel(m)
+	if !strings.Contains(out, "Axe") {
+		t.Errorf("panel should show 'Axe', got:\n%s", out)
+	}
+	if !strings.Contains(out, "Torch") {
+		t.Errorf("panel should show 'Torch', got:\n%s", out)
+	}
+	if strings.Contains(out, "Empty") {
+		t.Error("panel should not show 'Empty' when items present")
+	}
+}
+
+// 7.17 HUD contains item count string.
+func TestRenderHUD_ContainsItemCount(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.viewportW = 120
+	m.viewportH = 40
+	m.inventory.Items = []Item{
+		{Name: "Axe", Count: 1},
+		{Name: "Torch", Count: 2},
+	}
+	out := renderHUD(m)
+	expected := fmt.Sprintf("Items: %d/%d", 2, InventoryMaxSlots)
+	if !strings.Contains(out, expected) {
+		t.Errorf("HUD should contain %q, got:\n%s", expected, out)
+	}
+}
+

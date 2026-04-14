@@ -354,6 +354,7 @@ func renderHUD(m Model) string {
 	tile := TileAt(m.worldPos.X, m.worldPos.Y, &m)
 	clock := formatTime(m.timeOfDay)
 	speed := fmt.Sprintf("%d×", m.timeScale)
+	items := fmt.Sprintf("Items: %d/%d", len(m.inventory.Items), InventoryMaxSlots)
 	var text string
 	// In temperature-overlay mode use the same perceived value that drives the
 	// map colour, so the °C reading is consistent with what the player sees.
@@ -363,29 +364,29 @@ func renderHUD(m Model) string {
 	}
 	celsius := tempCelsius(displayTemp, tile.Elevation, m.timeOfDay)
 	if m.mode == ModeDungeon {
-		text = fmt.Sprintf(" Dungeon  Depth: %d  (%d, %d)  %s  %s",
+		text = fmt.Sprintf(" Dungeon  Depth: %d  (%d, %d)  %s  %s  %s",
 			m.dungeonDepth,
 			m.worldPos.X, m.worldPos.Y,
-			clock, speed,
+			clock, speed, items,
 		)
 	} else if m.mode == ModeLocal {
-		text = fmt.Sprintf(" %s  %d°C  local (%d, %d)  world (%d, %d)  %s  %s",
+		text = fmt.Sprintf(" %s  %d°C  local (%d, %d)  world (%d, %d)  %s  %s  %s",
 			biomeName(tile.Biome),
 			celsius,
 			m.playerPos.X, m.playerPos.Y,
 			m.worldPos.X, m.worldPos.Y,
-			clock, speed,
+			clock, speed, items,
 		)
 	} else {
 		chunkX := m.worldPos.X / 32
 		chunkY := m.worldPos.Y / 32
-		text = fmt.Sprintf(" %s  elev: %.2f  %d°C  (%d, %d)  chunk (%d, %d)  %s  %s",
+		text = fmt.Sprintf(" %s  elev: %.2f  %d°C  (%d, %d)  chunk (%d, %d)  %s  %s  %s",
 			biomeName(tile.Biome),
 			tile.Elevation,
 			celsius,
 			m.worldPos.X, m.worldPos.Y,
 			chunkX, chunkY,
-			clock, speed,
+			clock, speed, items,
 		)
 	}
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("#ccd9e0")).Render(text)
@@ -666,11 +667,11 @@ func renderKeyBar(m Model) string {
 	speed := fmt.Sprintf("%d×", m.timeScale)
 	var hints string
 	if m.mode == ModeDungeon {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  < up  > down  esc exit  f torch  [/] speed (%s)  ? sidebar  q quit", speed)
+		hints = fmt.Sprintf(" ↑↓←→/wasd move  < up  > down  esc exit  f torch  g pick  d drop  u use  i inv  [/] speed (%s)  ? sidebar  q quit", speed)
 	} else if m.mode == ModeLocal {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  esc/< ascend  [/] speed (%s)  ? sidebar  q quit", speed)
+		hints = fmt.Sprintf(" ↑↓←→/wasd move  esc/< ascend  g pick  d drop  u use  i inv  [/] speed (%s)  ? sidebar  q quit", speed)
 	} else {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  [/] speed (%s)  m map  ? sidebar  q quit", m.worldZoom, speed)
+		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  i inv  [/] speed (%s)  m map  ? sidebar  q quit", m.worldZoom, speed)
 	}
 	return keyBarStyle.Render(hints)
 }
@@ -812,6 +813,51 @@ func renderDungeonMap(m Model, mapW, mapH int) string {
 	return strings.Join(rows, "\n")
 }
 
+// ── Inventory panel ───────────────────────────────────────────────────────────
+
+const inventoryPanelW = 22
+
+var (
+	invHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ccd9e0"))
+	invCursorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#58a6ff"))
+	invItemStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#ccd9e0"))
+	invEmptyStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#768390"))
+)
+
+// renderInventoryPanel returns a fixed-width overlay panel listing inventory items.
+func renderInventoryPanel(m Model) string {
+	pad := func(s string) string {
+		return lipgloss.NewStyle().Width(inventoryPanelW).Render(s)
+	}
+
+	var lines []string
+	lines = append(lines,
+		pad(invHeaderStyle.Render(" Inventory")),
+		pad(sidebarSubStyle.Render(" "+strings.Repeat("─", 20))),
+	)
+
+	if len(m.inventory.Items) == 0 {
+		lines = append(lines, pad(invEmptyStyle.Render(" Empty")))
+	} else {
+		for i, item := range m.inventory.Items {
+			icon := lipgloss.NewStyle().Foreground(lipgloss.Color(item.Color)).Render(string(item.Char))
+			label := fmt.Sprintf(" %s %s (x%d)", icon, item.Name, item.Count)
+			if i == m.inventoryCursor {
+				lines = append(lines, pad(invCursorStyle.Render(label)))
+			} else {
+				lines = append(lines, pad(invItemStyle.Render(label)))
+			}
+		}
+	}
+
+	hint := " i close  d drop  u use"
+	if m.mode == ModeWorld {
+		hint = " i close"
+	}
+	lines = append(lines, pad(sidebarSubStyle.Render(hint)))
+	return strings.Join(lines, "\n")
+}
+
 // ── View composition ──────────────────────────────────────────────────────────
 
 // buildView composes the full terminal view: optional sidebar | map, HUD, key bar.
@@ -822,43 +868,37 @@ func buildView(m Model) string {
 		mapH = 1
 	}
 
+	renderMap := func(mapW int) string {
+		if m.mode == ModeLocal {
+			return renderLocalMap(m, mapW, mapH)
+		} else if m.mode == ModeDungeon {
+			return renderDungeonMap(m, mapW, mapH)
+		}
+		return renderWorldMap(m, mapW, mapH)
+	}
+
 	var mapView string
-	if m.showSidebar {
+	if m.showInventory {
+		mapW := m.viewportW - inventoryPanelW
+		if mapW < 10 {
+			mapW = 10
+		}
+		invPanel := renderInventoryPanel(m)
+		mapView = lipgloss.JoinHorizontal(lipgloss.Top, renderMap(mapW), invPanel)
+	} else if m.showSidebar {
 		mapW := m.viewportW - sidebarContentW - 1 // -1 for the │ separator column
 		if mapW < 10 {
 			mapW = 10
 		}
-		sidebar := renderSidebar(m, mapH)
-		if m.mode == ModeLocal {
-			mapView = renderLocalMap(m, mapW, mapH)
-		} else if m.mode == ModeDungeon {
-			mapView = renderDungeonMap(m, mapW, mapH)
-		} else {
-			mapView = renderWorldMap(m, mapW, mapH)
-		}
-		mapView = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mapView)
+		mapView = lipgloss.JoinHorizontal(lipgloss.Top, renderSidebar(m, mapH), renderMap(mapW))
 	} else if m.showMapPicker {
 		mapW := m.viewportW - pickerContentW - 1 // -1 for the │ separator column
 		if mapW < 10 {
 			mapW = 10
 		}
-		picker := renderMapPicker(m, mapH)
-		if m.mode == ModeLocal {
-			mapView = renderLocalMap(m, mapW, mapH)
-		} else if m.mode == ModeDungeon {
-			mapView = renderDungeonMap(m, mapW, mapH)
-		} else {
-			mapView = renderWorldMap(m, mapW, mapH)
-		}
-		mapView = lipgloss.JoinHorizontal(lipgloss.Top, mapView, picker)
+		mapView = lipgloss.JoinHorizontal(lipgloss.Top, renderMap(mapW), renderMapPicker(m, mapH))
 	} else {
-		if m.mode == ModeLocal {
-			mapView = renderLocalMap(m, m.viewportW, mapH)
-		} else if m.mode == ModeDungeon {
-			mapView = renderDungeonMap(m, m.viewportW, mapH)
-		} else {
-			mapView = renderWorldMap(m, m.viewportW, mapH)
-		}
+		mapView = renderMap(m.viewportW)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, mapView, renderHUD(m), renderKeyBar(m))
