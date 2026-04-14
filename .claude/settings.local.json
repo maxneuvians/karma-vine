@@ -6,7 +6,8 @@
       "Bash(openspec status:*)",
       "Bash(go build:*)",
       "Bash(go test:*)",
-      "Bash(openspec instructions:*)"
+      "Bash(openspec instructions:*)",
+      "Bash(openspec --help)"
     ]
   }
 }
