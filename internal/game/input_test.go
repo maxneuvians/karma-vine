@@ -334,3 +334,150 @@ func TestHandleKey_AscendNoopInWorldMode(t *testing.T) {
 		t.Fatalf("esc in ModeWorld should stay ModeWorld, got %d", result.mode)
 	}
 }
+
+// ── map picker input tests ────────────────────────────────────────────────────
+
+func TestHandleKey_M_OpensPickerInWorldMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.mapMode = MapModeElevation
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, m)
+	if !result.showMapPicker {
+		t.Fatal("m in ModeWorld: showMapPicker should be true")
+	}
+	if result.mapPickerCursor != int(MapModeElevation) {
+		t.Errorf("m in ModeWorld: mapPickerCursor = %d, want %d", result.mapPickerCursor, int(MapModeElevation))
+	}
+	if result.showSidebar {
+		t.Fatal("m in ModeWorld: showSidebar should be false")
+	}
+}
+
+func TestHandleKey_M_ClosesPickerWithoutChangingMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.mapMode = MapModeTemperature
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, m)
+	if result.showMapPicker {
+		t.Fatal("m with picker open: showMapPicker should be false")
+	}
+	if result.mapMode != MapModeTemperature {
+		t.Errorf("m closes picker: mapMode changed, got %d want %d", result.mapMode, MapModeTemperature)
+	}
+}
+
+func TestHandleKey_M_NoopInLocalMode(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, m)
+	if result.showMapPicker {
+		t.Fatal("m in ModeLocal should not open picker")
+	}
+}
+
+func TestHandleKey_Picker_EnterAppliesSelection(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.mapPickerCursor = int(MapModeElevation)
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if result.mapMode != MapModeElevation {
+		t.Errorf("enter in picker: mapMode = %d, want MapModeElevation", result.mapMode)
+	}
+	if result.showMapPicker {
+		t.Fatal("enter in picker: showMapPicker should be false after confirm")
+	}
+}
+
+func TestHandleKey_Picker_EscCancels(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.mapMode = MapModeTemperature
+	m.mapPickerCursor = int(MapModeElevation)
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEsc}, m)
+	if result.showMapPicker {
+		t.Fatal("esc in picker: showMapPicker should be false")
+	}
+	if result.mapMode != MapModeTemperature {
+		t.Errorf("esc in picker: mapMode changed, got %d want %d", result.mapMode, MapModeTemperature)
+	}
+}
+
+func TestHandleKey_Picker_UpDownMoveCursor(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.mapPickerCursor = 1
+
+	down, _ := handleKey(tea.KeyMsg{Type: tea.KeyDown}, m)
+	if down.mapPickerCursor != 2 {
+		t.Errorf("down in picker: cursor = %d, want 2", down.mapPickerCursor)
+	}
+	if down.worldPos != m.worldPos {
+		t.Error("down in picker: worldPos should not change")
+	}
+
+	up, _ := handleKey(tea.KeyMsg{Type: tea.KeyUp}, m)
+	if up.mapPickerCursor != 0 {
+		t.Errorf("up in picker: cursor = %d, want 0", up.mapPickerCursor)
+	}
+}
+
+func TestHandleKey_Picker_CursorClampsAtBottom(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.mapPickerCursor = len(mapModeNames) - 1
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyDown}, m)
+	if result.mapPickerCursor != len(mapModeNames)-1 {
+		t.Errorf("down at bottom: cursor = %d, want %d", result.mapPickerCursor, len(mapModeNames)-1)
+	}
+}
+
+func TestHandleKey_Picker_CursorClampsAtTop(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.mapPickerCursor = 0
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyUp}, m)
+	if result.mapPickerCursor != 0 {
+		t.Errorf("up at top: cursor = %d, want 0", result.mapPickerCursor)
+	}
+}
+
+func TestHandleKey_Picker_MovementBlockedWhileOpen(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	m.worldPos = WorldCoord{X: 5, Y: 5}
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRight}, m)
+	if result.worldPos.X != 5 {
+		t.Errorf("right while picker open: worldPos.X = %d, want 5 (blocked)", result.worldPos.X)
+	}
+}
+
+func TestHandleKey_QuestionMark_ClosesPicker(t *testing.T) {
+	m := NewModel()
+	m.showMapPicker = true
+	m.showSidebar = false
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}, m)
+	if result.showMapPicker {
+		t.Fatal("?: showMapPicker should be false when sidebar opened")
+	}
+	if !result.showSidebar {
+		t.Fatal("?: showSidebar should be true")
+	}
+}
+
+func TestHandleKey_Enter_DescendsWhenPickerClosed(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeWorld
+	m.showMapPicker = false
+	result, _ := handleKey(tea.KeyMsg{Type: tea.KeyEnter}, m)
+	if result.mode != ModeLocal {
+		t.Fatalf("enter with picker closed: mode = %d, want ModeLocal", result.mode)
+	}
+}

@@ -1,7 +1,9 @@
 package game
 
 import (
+	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -480,6 +482,271 @@ func TestBuildView_SidebarNarrowViewport(t *testing.T) {
 	out := buildView(m)
 	if out == "" {
 		t.Fatal("buildView narrow sidebar viewport returned empty string")
+	}
+}
+
+// ── lerpHex ───────────────────────────────────────────────────────────────────
+
+func TestLerpHex_AtZero(t *testing.T) {
+	got := lerpHex("#000000", "#ffffff", 0)
+	if got != "#000000" {
+		t.Errorf("lerpHex t=0: got %q, want #000000", got)
+	}
+}
+
+func TestLerpHex_AtOne(t *testing.T) {
+	got := lerpHex("#000000", "#ffffff", 1.0)
+	if got != "#ffffff" {
+		t.Errorf("lerpHex t=1: got %q, want #ffffff", got)
+	}
+}
+
+func TestLerpHex_AtHalf(t *testing.T) {
+	// #000000 → #ffffff at 0.5 → each channel: 0 + 0.5*255 = 127 = #7f
+	got := lerpHex("#000000", "#ffffff", 0.5)
+	if got != "#7f7f7f" {
+		t.Errorf("lerpHex t=0.5: got %q, want #7f7f7f", got)
+	}
+}
+
+func TestLerpHex_InvalidPassthrough(t *testing.T) {
+	// Non-color strings should return first argument unchanged
+	cases := []struct{ a, b string }{
+		{"bad", "#ffffff"},
+		{"#ffffff", "bad"},
+	}
+	for _, c := range cases {
+		got := lerpHex(c.a, c.b, 0.5)
+		if got != c.a {
+			t.Errorf("lerpHex(%q, %q, 0.5) = %q, want %q (passthrough)", c.a, c.b, got, c.a)
+		}
+	}
+}
+
+// ── tileVisual ────────────────────────────────────────────────────────────────
+
+func TestTileVisual_Default_Passthrough(t *testing.T) {
+	tile := Tile{Char: '♣', Color: "#2d7a1f", Biome: Forest, Elevation: 0.5, Temperature: 0.5}
+	ch, color := tileVisual(tile, MapModeDefault)
+	if ch != '♣' || color != "#2d7a1f" {
+		t.Errorf("tileVisual default: got (%q, %q), want ('♣', '#2d7a1f')", ch, color)
+	}
+}
+
+func TestTileVisual_Temperature_Min(t *testing.T) {
+	tile := Tile{Temperature: 0.0}
+	ch, color := tileVisual(tile, MapModeTemperature)
+	if ch != '█' {
+		t.Errorf("tileVisual temperature min: char = %q, want '█'", ch)
+	}
+	if color != "#0022cc" {
+		t.Errorf("tileVisual temperature min: color = %q, want #0022cc", color)
+	}
+}
+
+func TestTileVisual_Temperature_Max(t *testing.T) {
+	// Desert at temp=1.0: perceivedTemperature clamps to 1.0 → thermalColor(1) = #ff2200
+	tile := Tile{Temperature: 1.0, Biome: Desert}
+	ch, color := tileVisual(tile, MapModeTemperature)
+	if ch != '█' {
+		t.Errorf("tileVisual temperature max: char = %q, want '█'", ch)
+	}
+	if color != "#ff2200" {
+		t.Errorf("tileVisual temperature max: color = %q, want #ff2200", color)
+	}
+}
+
+func TestTileVisual_Temperature_DeepOceanCoolerThanDesert(t *testing.T) {
+	// At the same raw temperature, ocean should appear cooler (more blue) than desert.
+	ocean := Tile{Temperature: 0.6, Biome: DeepOcean}
+	desert := Tile{Temperature: 0.6, Biome: Desert}
+	_, oceanColor := tileVisual(ocean, MapModeTemperature)
+	_, desertColor := tileVisual(desert, MapModeTemperature)
+	if perceivedTemperature(ocean) >= perceivedTemperature(desert) {
+		t.Errorf("deep ocean (%v) should be cooler than desert (%v)",
+			perceivedTemperature(ocean), perceivedTemperature(desert))
+	}
+	if oceanColor == desertColor {
+		t.Error("ocean and desert should render different colors in temperature mode")
+	}
+}
+
+// ── thermalColor ──────────────────────────────────────────────────────────────
+
+func TestThermalColor_Endpoints(t *testing.T) {
+	if got := thermalColor(0); got != "#0022cc" {
+		t.Errorf("thermalColor(0) = %q, want #0022cc", got)
+	}
+	if got := thermalColor(1); got != "#ff2200" {
+		t.Errorf("thermalColor(1) = %q, want #ff2200", got)
+	}
+}
+
+func TestThermalColor_Midpoint_IsGreen(t *testing.T) {
+	// t=0.5 is the sea-green stop; result should be greenish, not purple
+	color := thermalColor(0.5)
+	if color != "#00dd88" {
+		t.Errorf("thermalColor(0.5) = %q, want #00dd88 (sea green)", color)
+	}
+}
+
+func TestThermalColor_Clamps(t *testing.T) {
+	if thermalColor(-1) != thermalColor(0) {
+		t.Error("thermalColor(-1) should clamp to thermalColor(0)")
+	}
+	if thermalColor(2) != thermalColor(1) {
+		t.Error("thermalColor(2) should clamp to thermalColor(1)")
+	}
+}
+
+func TestThermalColor_OrderingCold_To_Hot(t *testing.T) {
+	// Extract the red channel at each stop — it should increase from cold to hot.
+	// t=0 (#0022cc) r=0x00, t=0.5 (#00dd88) r=0x00, t=0.75 (#ffee00) r=0xff, t=1 (#ff2200) r=0xff
+	// More robustly: blue channel dominates at t=0, red channel at t=1.
+	cold := thermalColor(0.1)
+	hot := thermalColor(0.9)
+	// Parse red channel
+	var coldR, hotR int
+	fmt.Sscanf(cold[1:3], "%x", &coldR)
+	fmt.Sscanf(hot[1:3], "%x", &hotR)
+	if coldR >= hotR {
+		t.Errorf("thermalColor: cold (t=0.1) red=%d should be less than hot (t=0.9) red=%d", coldR, hotR)
+	}
+}
+
+func TestTileVisual_Elevation_Min(t *testing.T) {
+	tile := Tile{Elevation: 0.0}
+	ch, color := tileVisual(tile, MapModeElevation)
+	if ch != '█' || color != "#1a6fa8" {
+		t.Errorf("tileVisual elevation min: got (%q, %q), want ('█', '#1a6fa8')", ch, color)
+	}
+}
+
+func TestTileVisual_Elevation_Max(t *testing.T) {
+	tile := Tile{Elevation: 1.0}
+	ch, color := tileVisual(tile, MapModeElevation)
+	if ch != '█' || color != "#f0f6fc" {
+		t.Errorf("tileVisual elevation max: got (%q, %q), want ('█', '#f0f6fc')", ch, color)
+	}
+}
+
+// ── perceivedTemperature ──────────────────────────────────────────────────────
+
+func TestPerceivedTemperature_Clamps(t *testing.T) {
+	// Desert at high temp may exceed 1.0 before clamping
+	tile := Tile{Temperature: 0.98, Biome: Desert}
+	v := perceivedTemperature(tile)
+	if v > 1.0 || v < 0.0 {
+		t.Errorf("perceivedTemperature out of range: %v", v)
+	}
+}
+
+func TestPerceivedTemperature_BiomeOrdering(t *testing.T) {
+	const rawTemp = 0.6
+	ocean := perceivedTemperature(Tile{Temperature: rawTemp, Biome: DeepOcean})
+	forest := perceivedTemperature(Tile{Temperature: rawTemp, Biome: Forest})
+	desert := perceivedTemperature(Tile{Temperature: rawTemp, Biome: Desert})
+
+	if !(ocean < forest) {
+		t.Errorf("deep ocean (%v) should be cooler than forest (%v)", ocean, forest)
+	}
+	if !(forest < desert) {
+		t.Errorf("forest (%v) should be cooler than desert (%v)", forest, desert)
+	}
+}
+
+func TestTileVisual_Political_Contour(t *testing.T) {
+	// Elevation 0.09: int(0.09*10)=0, int((0.09+0.05)*10)=int(1.4)=1 → boundary
+	tile := Tile{Elevation: 0.09}
+	ch, color := tileVisual(tile, MapModePolitical)
+	if ch != '+' || color != "#aabbcc" {
+		t.Errorf("tileVisual political contour: got (%q, %q), want ('+', '#aabbcc')", ch, color)
+	}
+}
+
+func TestTileVisual_Political_NonContour(t *testing.T) {
+	// Elevation 0.5: int(5.0)=5, int(5.5)=5 → same → no boundary
+	tile := Tile{Elevation: 0.5}
+	ch, color := tileVisual(tile, MapModePolitical)
+	if ch != '·' || color != "#334455" {
+		t.Errorf("tileVisual political non-contour: got (%q, %q), want ('·', '#334455')", ch, color)
+	}
+}
+
+// ── renderWorldMap with MapMode ───────────────────────────────────────────────
+
+func TestRenderWorldMap_TemperatureMode(t *testing.T) {
+	m := NewModel()
+	m.mapMode = MapModeTemperature
+	outTemp := renderWorldMap(m, 20, 10)
+
+	m2 := NewModel()
+	m2.mapMode = MapModeDefault
+	m2.worldPos = m.worldPos
+	outDefault := renderWorldMap(m2, 20, 10)
+
+	if outTemp == outDefault {
+		t.Error("renderWorldMap temperature mode should differ from default mode")
+	}
+	if outTemp == "" {
+		t.Error("renderWorldMap temperature mode returned empty string")
+	}
+}
+
+// ── renderMapPicker ───────────────────────────────────────────────────────────
+
+func TestRenderMapPicker_ContainsAllModeNames(t *testing.T) {
+	m := NewModel()
+	out := renderMapPicker(m, 10)
+	for _, name := range mapModeNames {
+		if !strings.Contains(out, name) {
+			t.Errorf("renderMapPicker missing mode name %q", name)
+		}
+	}
+}
+
+func TestRenderMapPicker_CursorHighlighted(t *testing.T) {
+	m := NewModel()
+	m.mapPickerCursor = 2 // Elevation
+	out := renderMapPicker(m, 10)
+	if !strings.Contains(out, "> Elevation") {
+		t.Error("renderMapPicker: cursor row should contain '> Elevation'")
+	}
+	if strings.Contains(out, "> Default") {
+		t.Error("renderMapPicker: non-cursor row should not contain '> Default'")
+	}
+}
+
+func TestRenderMapPicker_HeightZero(t *testing.T) {
+	m := NewModel()
+	out := renderMapPicker(m, 0) // should clamp to 1
+	if out == "" {
+		t.Fatal("renderMapPicker height=0 returned empty string")
+	}
+}
+
+// ── buildView with map picker ─────────────────────────────────────────────────
+
+func TestBuildView_WorldModeWithMapPicker(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.mode = ModeWorld
+	m.showMapPicker = true
+	out := buildView(m)
+	if out == "" {
+		t.Fatal("buildView ModeWorld with map picker returned empty string")
+	}
+}
+
+func TestBuildView_MapPickerNarrowViewport(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 5
+	m.viewportH = 24
+	m.showMapPicker = true
+	out := buildView(m)
+	if out == "" {
+		t.Fatal("buildView narrow map picker viewport returned empty string")
 	}
 }
 

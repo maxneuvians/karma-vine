@@ -92,3 +92,13 @@ const (
 	ModeWorld Mode = iota
 	ModeLocal
 )
+
+// MapMode describes the active world-map overlay.
+type MapMode int
+
+const (
+	MapModeDefault     MapMode = iota // standard biome view
+	MapModeTemperature                // temperature gradient overlay
+	MapModeElevation                  // elevation gradient overlay
+	MapModePolitical                  // contour line overlay
+)

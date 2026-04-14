@@ -44,6 +44,121 @@ func applyColor(hex string, dim float64) string {
 	)
 }
 
+// ── Map mode tile visual ──────────────────────────────────────────────────────
+
+// lerpHex linearly interpolates between two #rrggbb hex colors by factor t ∈ [0,1].
+// Returns a unchanged if either string is not a valid #rrggbb color.
+func lerpHex(a, b string, t float64) string {
+	if len(a) != 7 || a[0] != '#' || len(b) != 7 || b[0] != '#' {
+		return a
+	}
+	ar, e1 := strconv.ParseUint(a[1:3], 16, 64)
+	ag, e2 := strconv.ParseUint(a[3:5], 16, 64)
+	ab, e3 := strconv.ParseUint(a[5:7], 16, 64)
+	br, e4 := strconv.ParseUint(b[1:3], 16, 64)
+	bg, e5 := strconv.ParseUint(b[3:5], 16, 64)
+	bb, e6 := strconv.ParseUint(b[5:7], 16, 64)
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil || e6 != nil {
+		return a
+	}
+	r := float64(ar) + t*(float64(br)-float64(ar))
+	g := float64(ag) + t*(float64(bg)-float64(ag))
+	bv := float64(ab) + t*(float64(bb)-float64(ab))
+	return fmt.Sprintf("#%02x%02x%02x", uint64(r), uint64(g), uint64(bv))
+}
+
+// perceivedTemperature adjusts a tile's raw climate temperature to reflect the
+// biome's felt heat using additive offsets, so that same-latitude tiles always
+// sort correctly regardless of their absolute temperature.
+// The result is clamped to [0, 1].
+func perceivedTemperature(t Tile) float64 {
+	v := t.Temperature
+	switch t.Biome {
+	case DeepOcean:
+		// Deep water has high thermal mass and strong evaporative cooling;
+		// use a combined scale+offset so it's always substantially cooler than land.
+		v = v*0.5 - 0.15
+	case ShallowWater:
+		v = v*0.6 - 0.08
+	case Beach:
+		v -= 0.05 // wet sand, slightly cooler than open plains
+	case Forest:
+		v -= 0.12 // canopy shade and transpiration
+	case DenseForest, Taiga:
+		v -= 0.18
+	case Jungle:
+		v += 0.08 // hot and humid
+	case Savanna:
+		v += 0.12
+	case Desert, AridSteppe:
+		v += 0.20 // bare ground radiates heat strongly
+	case Mountains:
+		v -= 0.20 // altitude lapse rate
+	case Snow, Tundra:
+		v -= 0.35 // persistently frozen
+	}
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
+// thermalColor maps t ∈ [0,1] to a 5-stop thermal gradient:
+// dark-blue → sky-blue → sea-green → yellow → red.
+// Unlike a 2-stop lerp this avoids the confusing purple midpoint.
+func thermalColor(t float64) string {
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+	type rgb struct{ r, g, b float64 }
+	stops := []struct {
+		at  float64
+		col rgb
+	}{
+		{0.00, rgb{0x00, 0x22, 0xcc}}, // dark blue   (very cold)
+		{0.25, rgb{0x00, 0x99, 0xff}}, // sky blue    (cool)
+		{0.50, rgb{0x00, 0xdd, 0x88}}, // sea green   (moderate)
+		{0.75, rgb{0xff, 0xee, 0x00}}, // yellow      (warm)
+		{1.00, rgb{0xff, 0x22, 0x00}}, // red         (hot)
+	}
+	for i := 1; i < len(stops); i++ {
+		if t <= stops[i].at {
+			s0, s1 := stops[i-1], stops[i]
+			u := (t - s0.at) / (s1.at - s0.at)
+			r := s0.col.r + u*(s1.col.r-s0.col.r)
+			g := s0.col.g + u*(s1.col.g-s0.col.g)
+			b := s0.col.b + u*(s1.col.b-s0.col.b)
+			return fmt.Sprintf("#%02x%02x%02x", uint64(r), uint64(g), uint64(b))
+		}
+	}
+	return "#ff2200"
+}
+
+// tileVisual returns the character and color to display for a tile in the given MapMode.
+// In MapModeDefault the tile's own Char and Color are returned unchanged.
+func tileVisual(t Tile, mode MapMode) (ch rune, color string) {
+	switch mode {
+	case MapModeTemperature:
+		return '█', thermalColor(perceivedTemperature(t))
+	case MapModeElevation:
+		return '█', lerpHex("#1a6fa8", "#f0f6fc", t.Elevation)
+	case MapModePolitical:
+		// Show a contour character near elevation-band boundaries (every 0.1 unit).
+		if int(t.Elevation*10) != int((t.Elevation+0.05)*10) {
+			return '+', "#aabbcc"
+		}
+		return '·', "#334455"
+	default: // MapModeDefault
+		return t.Char, t.Color
+	}
+}
+
 // ── Biome name ───────────────────────────────────────────────────────────────
 
 func biomeName(b Biome) string {
@@ -104,8 +219,16 @@ func renderWorldMap(m Model, mapW, mapH int) string {
 			wx := m.worldPos.X + (sx-cx)*z
 			wy := m.worldPos.Y + (sy-cy)*z
 			tile := TileAt(wx, wy, &m)
-			color := applyColor(tile.Color, dimFactor(m.timeOfDay))
-			cell := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(string(tile.Char))
+			ch, col := tileVisual(tile, m.mapMode)
+			// Data overlay modes show raw values — skip time-of-day dimming so
+			// hues remain accurate regardless of the in-game clock.
+			var color string
+			if m.mapMode == MapModeDefault || m.mapMode == MapModePolitical {
+				color = applyColor(col, dimFactor(m.timeOfDay))
+			} else {
+				color = col
+			}
+			cell := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(string(ch))
 			row.WriteString(cell)
 		}
 		rows = append(rows, row.String())
@@ -127,6 +250,15 @@ func renderLocalMap(m Model, mapW, mapH int) string {
 	}
 	if lm == nil {
 		return "Local map not loaded."
+	}
+
+	// Cap the render dimensions to the local map size so camera clamping never
+	// produces a negative origin that would panic on array access.
+	if mapW > LocalMapW {
+		mapW = LocalMapW
+	}
+	if mapH > LocalMapH {
+		mapH = LocalMapH
 	}
 
 	// Compute camera origin so playerPos is centred, clamped to map bounds.
@@ -222,7 +354,13 @@ func renderHUD(m Model) string {
 	clock := formatTime(m.timeOfDay)
 	speed := fmt.Sprintf("%d×", m.timeScale)
 	var text string
-	celsius := tempCelsius(tile.Temperature, tile.Elevation, m.timeOfDay)
+	// In temperature-overlay mode use the same perceived value that drives the
+	// map colour, so the °C reading is consistent with what the player sees.
+	displayTemp := tile.Temperature
+	if m.mapMode == MapModeTemperature {
+		displayTemp = perceivedTemperature(tile)
+	}
+	celsius := tempCelsius(displayTemp, tile.Elevation, m.timeOfDay)
 	if m.mode == ModeLocal {
 		text = fmt.Sprintf(" %s  %d°C  local (%d, %d)  world (%d, %d)  %s  %s",
 			biomeName(tile.Biome),
@@ -395,6 +533,57 @@ func renderSidebar(m Model, height int) string {
 	return strings.Join(rows, "\n")
 }
 
+// ── Map mode picker ───────────────────────────────────────────────────────────
+
+const pickerContentW = 22 // visible character width of the picker panel (separator │ is extra)
+
+var (
+	pickerHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ccd9e0"))
+	pickerCursorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#58a6ff"))
+	pickerItemStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#ccd9e0"))
+)
+
+var mapModeNames = []string{"Default", "Temperature", "Elevation", "Political"}
+
+// pkText renders plain text padded to pickerContentW.
+func pkText(s string) string {
+	return lipgloss.NewStyle().Width(pickerContentW).Render(s)
+}
+
+// renderMapPicker builds a height-row picker panel with a trailing │ on each line.
+func renderMapPicker(m Model, height int) string {
+	if height < 1 {
+		height = 1
+	}
+
+	var lines []string
+	lines = append(lines,
+		pkText(pickerHeaderStyle.Render(" Map Mode")),
+		pkText(sidebarSubStyle.Render(" "+strings.Repeat("─", 20))),
+	)
+	for i, name := range mapModeNames {
+		if i == m.mapPickerCursor {
+			lines = append(lines, pkText(pickerCursorStyle.Render(" > "+name)))
+		} else {
+			lines = append(lines, pkText(pickerItemStyle.Render("   "+name)))
+		}
+	}
+
+	sep := sidebarSepStyle.Render("│")
+	hint := pkText(sidebarSubStyle.Render(" m/esc close"))
+
+	rows := make([]string, height)
+	for i := range rows {
+		content := pkText("")
+		if i < len(lines) {
+			content = lines[i]
+		}
+		rows[i] = content + sep
+	}
+	rows[height-1] = hint + sep
+	return strings.Join(rows, "\n")
+}
+
 // ── Key bar ───────────────────────────────────────────────────────────────────
 
 // renderKeyBar returns a single row of context-sensitive key binding hints.
@@ -404,7 +593,7 @@ func renderKeyBar(m Model) string {
 	if m.mode == ModeLocal {
 		hints = fmt.Sprintf(" ↑↓←→/wasd move  esc/< ascend  [/] speed (%s)  ? sidebar  q quit", speed)
 	} else {
-		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  [/] speed (%s)  ? sidebar  q quit", m.worldZoom, speed)
+		hints = fmt.Sprintf(" ↑↓←→/wasd move  enter/> descend  +/- zoom (%d×)  [/] speed (%s)  m map  ? sidebar  q quit", m.worldZoom, speed)
 	}
 	return keyBarStyle.Render(hints)
 }
@@ -432,6 +621,18 @@ func buildView(m Model) string {
 			mapView = renderWorldMap(m, mapW, mapH)
 		}
 		mapView = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mapView)
+	} else if m.showMapPicker {
+		mapW := m.viewportW - pickerContentW - 1 // -1 for the │ separator column
+		if mapW < 10 {
+			mapW = 10
+		}
+		picker := renderMapPicker(m, mapH)
+		if m.mode == ModeLocal {
+			mapView = renderLocalMap(m, mapW, mapH)
+		} else {
+			mapView = renderWorldMap(m, mapW, mapH)
+		}
+		mapView = lipgloss.JoinHorizontal(lipgloss.Top, mapView, picker)
 	} else {
 		if m.mode == ModeLocal {
 			mapView = renderLocalMap(m, m.viewportW, mapH)

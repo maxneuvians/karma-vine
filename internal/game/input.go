@@ -6,12 +6,47 @@ import (
 
 // handleKey processes a key event and returns an updated Model and command.
 func handleKey(msg tea.KeyMsg, m Model) (Model, tea.Cmd) {
+	// While the map picker is open, arrow keys navigate the list instead of moving the player.
+	if m.showMapPicker {
+		switch msg.String() {
+		case "up", "w":
+			if m.mapPickerCursor > 0 {
+				m.mapPickerCursor--
+			}
+		case "down", "s":
+			if m.mapPickerCursor < len(mapModeNames)-1 {
+				m.mapPickerCursor++
+			}
+		case "enter":
+			m.mapMode = MapMode(m.mapPickerCursor)
+			m.showMapPicker = false
+		case "esc", "m":
+			m.showMapPicker = false
+		case "?":
+			m.showMapPicker = false
+			m.showSidebar = true
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 
 	case "?":
 		m.showSidebar = !m.showSidebar
+		if m.showSidebar {
+			m.showMapPicker = false
+		}
+
+	case "m":
+		if m.mode == ModeWorld {
+			m.showMapPicker = true
+			m.showSidebar = false
+			m.mapPickerCursor = int(m.mapMode)
+		}
 
 	// Time speed
 	case "]":

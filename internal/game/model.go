@@ -23,11 +23,14 @@ type Model struct {
 	playerPos LocalCoord
 
 	// UI
-	viewportW   int
-	viewportH   int
-	mode        Mode
-	showSidebar bool
-	worldZoom   int // 1=normal, 2=2×, 4=4×, 8=8×
+	viewportW       int
+	viewportH       int
+	mode            Mode
+	showSidebar     bool
+	worldZoom       int // 1=normal, 2=2×, 4=4×, 8=8×
+	mapMode         MapMode
+	showMapPicker   bool
+	mapPickerCursor int
 
 	// Time
 	timeOfDay float64 // [0, 1): 0=midnight, 0.25=6AM, 0.5=noon, 0.75=6PM

@@ -5,6 +5,8 @@ context: |
   Tech stack: Go
   We use conventional commits
   We use test coverage and want to maintain at least 90% coverage
+  Modular codebase with clear separation of concerns
+  Refactoring is common and encouraged to improve code quality
   Domain: Game
 
 # Per-artifact rules (optional)
