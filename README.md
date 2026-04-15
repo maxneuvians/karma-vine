@@ -9,7 +9,10 @@ A terminal-based world exploration game written in Go. Navigate a procedurally g
 - **Dungeon system** — BSP-generated rooms and corridors, fog-of-war visibility, torches and braziers providing light
 - **Map overlay modes** — Toggle between default, temperature, elevation, and political/contour views (`m` key)
 - **Day/night cycle** — Time advances in real time, dimming tile colours at night; fires provide local illumination
-- **Animals** — Biome-appropriate wildlife roams local maps
+- **Animals & dungeon enemies** — Biome-appropriate wildlife on local maps; multi-template enemies in dungeons with loot tables
+- **Combat** — Turn-based auto-battle with an armour buffer (armour absorbs damage before HP), playback speed control, and unicode block-character portraits
+- **Inventory & equipment** — 8-slot inventory, 6 equipment slots (head, chest, hands, legs, feet); equipped items contribute stat bonuses
+- **Starting equipment** — Player begins with a Wooden Sword (+1 damage) and Wooden Shield (+1 armour) pre-equipped
 
 ## Prerequisites
 
@@ -30,15 +33,44 @@ make run
 
 ## Controls
 
+### Exploration
+
 | Key | Action |
 |-----|--------|
 | `↑ ↓ ← →` or `w a s d` | Move |
 | `enter` / `>` | Descend (world → local → dungeon) |
 | `esc` / `<` | Ascend (dungeon → local → world) |
-| `m` | Toggle map mode picker (world map only) |
-| `?` | Toggle info sidebar |
+| `space` | Pause / unpause |
+| `g` | Pick up item on current cell; initiate combat if standing on an animal |
+| `u` | Use selected inventory item |
+| `f` | Toggle torch or brazier on/near current cell (dungeon only) |
+| `i` | Open inventory |
+| `m` | Open map mode picker (world map only) |
+| `?` | Toggle help panel |
+| `\` | Toggle info sidebar |
 | `]` / `[` | Speed up / slow down time |
-| `+` / `-` | Zoom world map in/out |
+| `+` / `-` | Zoom world map in / out |
+| `q` or `ctrl+c` | Quit |
+
+### Inventory screen (`i`)
+
+| Key | Action |
+|-----|--------|
+| `↑`/`w` , `↓`/`s` | Navigate item list or equipment slots |
+| `tab` | Switch focus between item list and equipment ragdoll |
+| `e` | Equip selected item (from list) / Unequip selected slot (from ragdoll) |
+| `d` | Drop selected item |
+| `u` | Use selected item |
+| `i` or `esc` | Close inventory |
+
+### Combat screen
+
+Combat starts **paused** — you can see the combatants before the fight begins.
+
+| Key | Action |
+|-----|--------|
+| `space` or `enter` | Begin combat (initial pause) / Dismiss result banner |
+| `]` / `[` | Increase / decrease playback speed (Slow / Normal / Fast) |
 | `q` or `ctrl+c` | Quit |
 
 ## Development
