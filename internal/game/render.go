@@ -1059,6 +1059,11 @@ func renderHeroPanel(m Model, width, height int) string {
 	portraitLines := strings.Split(portrait, "\n")
 	artH := len(portraitLines)
 	statsH := 5 // name + HP bar + HP label + ARM + DMG
+	// Clip portrait if it would leave no room for stats.
+	if artH > height-statsH && height > statsH {
+		artH = height - statsH
+		portraitLines = portraitLines[:artH]
+	}
 	pad := (height - artH - statsH) / 3
 	if pad < 0 {
 		pad = 0
@@ -1119,6 +1124,11 @@ func renderEnemyPanel(m Model, width, height int) string {
 	portraitLines := strings.Split(portrait, "\n")
 	artH := len(portraitLines)
 	statsH := 5
+	// Clip portrait if it would leave no room for stats.
+	if artH > height-statsH && height > statsH {
+		artH = height - statsH
+		portraitLines = portraitLines[:artH]
+	}
 	pad := (height - artH - statsH) / 3
 	if pad < 0 {
 		pad = 0

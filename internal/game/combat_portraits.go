@@ -1,12 +1,20 @@
 package game
 
 import (
+	"embed"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 )
 
-// portraitCell represents a single pixel in a 20×40 portrait grid.
+//go:embed portraits/*.ansi
+var portraitFS embed.FS
+
+// portrait is a pre-rendered ANSI string for a combat portrait.
+// Lines are joined by '\n'; each line contains raw ANSI escape sequences.
+type portrait = string
+
+// portraitCell represents a single cell in a code-defined portrait grid (fallback).
 type portraitCell struct {
 	r     rune
 	color string
@@ -41,9 +49,56 @@ func row(cells ...portraitCell) [portraitCols]portraitCell {
 	return r
 }
 
-// ── Player portrait: heroic humanoid silhouette ──────────────────────────────
+// ── Portrait variables ───────────────────────────────────────────────────────
 
-var playerPortrait = buildPlayerPortrait()
+var (
+	playerPortrait   portrait
+	humanoidPortrait portrait
+	beastPortrait    portrait
+	undeadPortrait   portrait
+	fallbackPortrait portrait
+)
+
+// init loads each portrait from an embedded .ansi file if one is present in the
+// portraits/ directory; otherwise it falls back to the code-generated version.
+func init() {
+	playerPortrait = loadPortrait("player", portraitCellsToANSI(buildPlayerPortrait()))
+	humanoidPortrait = loadPortrait("humanoid", portraitCellsToANSI(buildHumanoidPortrait()))
+	beastPortrait = loadPortrait("beast", portraitCellsToANSI(buildBeastPortrait()))
+	undeadPortrait = loadPortrait("undead", portraitCellsToANSI(buildUndeadPortrait()))
+	fallbackPortrait = loadPortrait("fallback", portraitCellsToANSI(buildFallbackPortrait()))
+}
+
+// loadPortrait reads "portraits/<name>.ansi" from the embedded FS.
+// If the file is not present it returns the supplied fallback string.
+func loadPortrait(name, fallback string) portrait {
+	data, err := portraitFS.ReadFile("portraits/" + name + ".ansi")
+	if err != nil {
+		return fallback
+	}
+	return strings.TrimRight(string(data), "\n")
+}
+
+// portraitCellsToANSI converts a code-defined portrait grid into a pre-rendered
+// ANSI string that can be used with renderPortrait.
+func portraitCellsToANSI(p [][portraitCols]portraitCell) string {
+	rows := make([]string, len(p))
+	for i, pRow := range p {
+		var b strings.Builder
+		for j := 0; j < portraitCols; j++ {
+			cell := pRow[j]
+			if cell.color == "" {
+				b.WriteRune(cell.r)
+			} else {
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(cell.color)).Render(string(cell.r)))
+			}
+		}
+		rows[i] = b.String()
+	}
+	return strings.Join(rows, "\n")
+}
+
+// ── Player portrait: heroic humanoid silhouette ──────────────────────────────
 
 func buildPlayerPortrait() [][portraitCols]portraitCell {
 	// Colors
@@ -139,8 +194,6 @@ func buildPlayerPortrait() [][portraitCols]portraitCell {
 
 // ── Enemy portraits ──────────────────────────────────────────────────────────
 
-var humanoidPortrait = buildHumanoidPortrait()
-
 func buildHumanoidPortrait() [][portraitCols]portraitCell {
 	skin := "#7a8b5c"
 	armor := "#5a4a3a"
@@ -180,8 +233,6 @@ func buildHumanoidPortrait() [][portraitCols]portraitCell {
 
 	return p
 }
-
-var beastPortrait = buildBeastPortrait()
 
 func buildBeastPortrait() [][portraitCols]portraitCell {
 	fur := "#8b6914"
@@ -225,8 +276,6 @@ func buildBeastPortrait() [][portraitCols]portraitCell {
 
 	return p
 }
-
-var undeadPortrait = buildUndeadPortrait()
 
 func buildUndeadPortrait() [][portraitCols]portraitCell {
 	bone := "#d4c9a8"
@@ -273,8 +322,6 @@ func buildUndeadPortrait() [][portraitCols]portraitCell {
 
 // ── Fallback portrait ────────────────────────────────────────────────────────
 
-var fallbackPortrait = buildFallbackPortrait()
-
 func buildFallbackPortrait() [][portraitCols]portraitCell {
 	body := "#888888"
 	bodyD := "#666666"
@@ -314,8 +361,8 @@ func buildFallbackPortrait() [][portraitCols]portraitCell {
 
 // ── Portrait selection ───────────────────────────────────────────────────────
 
-// enemyPortrait returns the portrait grid for the given enemy character rune.
-func enemyPortrait(char rune) [][portraitCols]portraitCell {
+// enemyPortrait returns the portrait for the given enemy character rune.
+func enemyPortrait(char rune) portrait {
 	switch char {
 	// Humanoid archetypes
 	case 'H', 'K', 'G', 'T', 'O':
@@ -333,29 +380,45 @@ func enemyPortrait(char rune) [][portraitCols]portraitCell {
 
 // ── Portrait rendering ───────────────────────────────────────────────────────
 
-// renderPortrait renders a portrait grid as a styled string.
-// Each cell is rendered with its foreground colour. Rows are clipped to panelWidth.
-func renderPortrait(p [][portraitCols]portraitCell, panelWidth int) string {
-	if panelWidth <= 0 {
+// renderPortrait renders a portrait string, clipping each line to at most
+// panelWidth visible (non-escape) characters.
+func renderPortrait(p portrait, panelWidth int) string {
+	if panelWidth <= 0 || p == "" {
 		return ""
 	}
-	cols := portraitCols
-	if panelWidth < cols {
-		cols = panelWidth
+	lines := strings.Split(p, "\n")
+	result := make([]string, len(lines))
+	for i, line := range lines {
+		result[i] = clipANSILine(line, panelWidth)
 	}
+	return strings.Join(result, "\n")
+}
 
-	rows := make([]string, len(p))
-	for i, pRow := range p {
-		var b strings.Builder
-		for j := 0; j < cols; j++ {
-			cell := pRow[j]
-			if cell.color == "" {
-				b.WriteRune(cell.r)
-			} else {
-				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(cell.color)).Render(string(cell.r)))
-			}
+// clipANSILine clips an ANSI-encoded string to at most maxWidth visible runes,
+// preserving all ANSI escape sequences intact.
+func clipANSILine(line string, maxWidth int) string {
+	var b strings.Builder
+	visible := 0
+	inEsc := false
+	for _, r := range line {
+		if r == '\x1b' {
+			inEsc = true
+			b.WriteRune(r)
+			continue
 		}
-		rows[i] = b.String()
+		if inEsc {
+			b.WriteRune(r)
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEsc = false
+			}
+			continue
+		}
+		if visible < maxWidth {
+			b.WriteRune(r)
+			visible++
+		} else {
+			break
+		}
 	}
-	return strings.Join(rows, "\n")
+	return b.String()
 }
