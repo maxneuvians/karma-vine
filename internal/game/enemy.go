@@ -336,6 +336,7 @@ func moveEnemies(m Model) Model {
 			m.combatDungeonEnemy = e
 			m.screenMode = ScreenCombat
 			m.combatLogIndex = 0
+			m.combatPaused = true
 			m.paused = true
 			break
 		}

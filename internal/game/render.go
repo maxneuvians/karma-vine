@@ -1049,13 +1049,15 @@ func speedLabel(speed int) string {
 	}
 }
 
-// renderHeroPanel renders the left panel with ragdoll art, name, HP bar, and stats.
+// renderHeroPanel renders the left panel with portrait art, name, HP bar, and stats.
 func renderHeroPanel(m Model, width, height int) string {
 	cs := m.combatState
 	var lines []string
 
-	// Centre ragdoll vertically in the top portion.
-	artH := len(ragdoll)
+	// Render portrait centred vertically in the top portion.
+	portrait := renderPortrait(playerPortrait, width)
+	portraitLines := strings.Split(portrait, "\n")
+	artH := len(portraitLines)
 	statsH := 5 // name + HP bar + HP label + ARM + DMG
 	pad := (height - artH - statsH) / 3
 	if pad < 0 {
@@ -1064,7 +1066,7 @@ func renderHeroPanel(m Model, width, height int) string {
 	for i := 0; i < pad; i++ {
 		lines = append(lines, "")
 	}
-	for _, line := range ragdoll {
+	for _, line := range portraitLines {
 		centered := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(line)
 		lines = append(lines, centered)
 	}
@@ -1097,12 +1099,12 @@ func renderHeroPanel(m Model, width, height int) string {
 	return strings.Join(result, "\n")
 }
 
-// renderEnemyPanel renders the right panel with enemy glyph, name, HP bar, and stats.
+// renderEnemyPanel renders the right panel with enemy portrait, name, HP bar, and stats.
 func renderEnemyPanel(m Model, width, height int) string {
 	cs := m.combatState
 	var lines []string
 
-	// Enemy glyph in a bordered box.
+	// Determine enemy character for portrait selection.
 	var enemyChar rune
 	if m.combatDungeonEnemy != nil {
 		enemyChar = m.combatDungeonEnemy.Template.Char
@@ -1112,19 +1114,10 @@ func renderEnemyPanel(m Model, width, height int) string {
 		enemyChar = '?'
 	}
 
-	glyphStr := string(enemyChar)
-	boxContent := lipgloss.NewStyle().
-		Width(5).Height(3).
-		Align(lipgloss.Center, lipgloss.Center).
-		Render(glyphStr)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#768390")).
-		Render(boxContent)
-
-	// Centre the glyph box similarly to the ragdoll.
-	boxLines := strings.Split(box, "\n")
-	artH := len(boxLines)
+	// Render portrait centred vertically.
+	portrait := renderPortrait(enemyPortrait(enemyChar), width)
+	portraitLines := strings.Split(portrait, "\n")
+	artH := len(portraitLines)
 	statsH := 5
 	pad := (height - artH - statsH) / 3
 	if pad < 0 {
@@ -1133,8 +1126,8 @@ func renderEnemyPanel(m Model, width, height int) string {
 	for i := 0; i < pad; i++ {
 		lines = append(lines, "")
 	}
-	for _, bl := range boxLines {
-		centered := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(bl)
+	for _, pl := range portraitLines {
+		centered := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(pl)
 		lines = append(lines, centered)
 	}
 	lines = append(lines, "")
@@ -1169,6 +1162,25 @@ func renderEnemyPanel(m Model, width, height int) string {
 // renderCombatLog renders the bottom log panel with speed label and visible combat log lines.
 func renderCombatLog(m Model, width, height int) string {
 	cs := m.combatState
+
+	// When combat is paused, show only the "Begin Combat" prompt.
+	if m.combatPaused {
+		var lines []string
+		prompt := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#58a6ff")).Render("[ Space ] Begin Combat")
+		centred := lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(prompt)
+		// Vertically centre the prompt in the panel.
+		topPad := height / 2
+		for i := 0; i < topPad; i++ {
+			lines = append(lines, "")
+		}
+		lines = append(lines, centred)
+		for len(lines) < height {
+			lines = append(lines, "")
+		}
+		lines = lines[:height]
+		return strings.Join(lines, "\n")
+	}
+
 	var lines []string
 
 	// Header with speed label.

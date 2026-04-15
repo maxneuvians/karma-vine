@@ -42,6 +42,7 @@ type Model struct {
 	combatDungeonEnemy *DungeonEnemy
 	combatLogIndex     int
 	combatSpeed        int
+	combatPaused       bool
 
 	// Player stats
 	playerHP    int
@@ -132,7 +133,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = moveEnemies(m)
 		}
 		if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 {
-			return m, tea.Batch(tickCmd(), tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} }))
+			// Combat starts paused; do not auto-schedule CombatTickMsg.
+			return m, tickCmd()
 		}
 		return m, tickCmd()
 	case CombatTickMsg:

@@ -1496,3 +1496,85 @@ func TestHandleKey_LeftBracketClampsSlow(t *testing.T) {
 		t.Fatalf("expected combatSpeed %d, got %d", CombatSpeedSlow, result.combatSpeed)
 	}
 }
+
+// ── Combat pause flow tests ──────────────────────────────────────────────────
+
+func TestCombatEntry_SetsCombatPaused(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeLocal
+	m.localMap = &LocalMap{}
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	m.localMap.Animals = []*Animal{{X: 5, Y: 5, Char: 'w', Color: "#555", Name: "Wolf"}}
+
+	result, cmd := handleKey(tea.KeyPressMsg{Code: 'g', Text: "g"}, m)
+	if !result.combatPaused {
+		t.Fatal("combat entry should set combatPaused = true")
+	}
+	if result.combatLogIndex != 0 {
+		t.Fatalf("combat entry: combatLogIndex = %d, want 0", result.combatLogIndex)
+	}
+	if cmd != nil {
+		t.Fatal("combat entry should not schedule a tick command (cmd should be nil)")
+	}
+}
+
+func TestCombatPause_SpaceUnpauses(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatPaused = true
+	m.combatSpeed = CombatSpeedNormal
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 15, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 8, MaxHP: 12},
+		Round:  3,
+	}
+
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, m)
+	if result.combatPaused {
+		t.Fatal("Space should set combatPaused = false")
+	}
+	if cmd == nil {
+		t.Fatal("Space on paused combat should return non-nil cmd (tick)")
+	}
+}
+
+func TestCombatPause_EnterUnpauses(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatPaused = true
+	m.combatSpeed = CombatSpeedNormal
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 15, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 8, MaxHP: 12},
+		Round:  3,
+	}
+
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if result.combatPaused {
+		t.Fatal("Enter should set combatPaused = false")
+	}
+	if cmd == nil {
+		t.Fatal("Enter on paused combat should return non-nil cmd (tick)")
+	}
+}
+
+func TestCombatActive_SpaceIsNoOp(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatPaused = false
+	m.combatSpeed = CombatSpeedNormal
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 15, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 8, MaxHP: 12},
+		Round:  3,
+	}
+	m.combatLogIndex = 1 // mid-playback, not at end
+
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, m)
+	if result.combatPaused {
+		t.Fatal("Space during active playback should not set combatPaused")
+	}
+	if cmd != nil {
+		t.Fatal("Space during active playback should not schedule additional tick")
+	}
+}

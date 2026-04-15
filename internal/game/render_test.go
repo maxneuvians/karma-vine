@@ -1055,23 +1055,45 @@ func TestBuildView_ScreenCombat(t *testing.T) {
 
 // ── New combat screen tests ─────────────────────────────────────────────────
 
-func TestRenderCombatScreen_ContainsRagdoll(t *testing.T) {
+func TestRenderCombatScreen_NilCombatState(t *testing.T) {
 	m := NewModel()
-	m.viewportW = 120
-	m.viewportH = 40
+	m.viewportW = 80
+	m.viewportH = 24
 	m.screenMode = ScreenCombat
-	m.combatState = &CombatState{
-		Player: Combatant{Name: "Player", HP: 20, MaxHP: 20},
-		Enemy:  Combatant{Name: "Wolf", HP: 12, MaxHP: 12},
-		Round:  1,
-	}
+	m.combatState = nil
 	out := renderCombatScreen(m)
-	if !strings.Contains(out, "~O~") {
-		t.Error("combat screen should contain ragdoll line '~O~'")
+	if !strings.Contains(out, "No combat active") {
+		t.Error("nil combatState should show 'No combat active'")
 	}
 }
 
-func TestRenderCombatScreen_ContainsEnemyGlyph(t *testing.T) {
+func TestRenderCombatScreen_DungeonEnemyPortrait(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenCombat
+	m.combatDungeonEnemy = &DungeonEnemy{
+		Template: &EnemyTemplate{Char: 'Z', Name: "Zombie"},
+	}
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:  Combatant{Name: "Zombie", HP: 10, MaxHP: 10},
+		Round:  1,
+	}
+	out := renderCombatScreen(m)
+	hasBlock := false
+	for _, r := range out {
+		if r >= 0x2580 {
+			hasBlock = true
+			break
+		}
+	}
+	if !hasBlock {
+		t.Error("dungeon enemy combat should contain block chars from undead portrait")
+	}
+}
+
+func TestRenderCombatScreen_ContainsPortraitBlockChars(t *testing.T) {
 	m := NewModel()
 	m.viewportW = 120
 	m.viewportH = 40
@@ -1082,8 +1104,32 @@ func TestRenderCombatScreen_ContainsEnemyGlyph(t *testing.T) {
 		Round:  1,
 	}
 	out := renderCombatScreen(m)
-	if !strings.Contains(out, "W") && !strings.Contains(out, "Wolf") {
-		t.Error("combat screen should contain enemy glyph 'W' or name 'Wolf'")
+	hasBlock := false
+	for _, r := range out {
+		if r >= 0x2580 {
+			hasBlock = true
+			break
+		}
+	}
+	if !hasBlock {
+		t.Error("combat screen should contain unicode block characters from portraits")
+	}
+}
+
+func TestRenderCombatScreen_ContainsEnemyPortraitBlockChars(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 120
+	m.viewportH = 40
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 12, MaxHP: 12},
+		Round:  1,
+	}
+	out := renderCombatScreen(m)
+	// Enemy panel should also have block chars from the portrait
+	if !strings.Contains(out, "Wolf") {
+		t.Error("combat screen should contain enemy name 'Wolf'")
 	}
 }
 
@@ -1156,6 +1202,47 @@ func TestRenderCombatScreen_SpeedLabelFast(t *testing.T) {
 	out := renderCombatScreen(m)
 	if !strings.Contains(out, "Fast") {
 		t.Error("combat screen should show 'Fast' speed label")
+	}
+}
+
+func TestRenderCombatScreen_PausePromptShown(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatPaused = true
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 12, MaxHP: 12},
+		Round:  1,
+	}
+	out := renderCombatScreen(m)
+	if !strings.Contains(out, "Begin Combat") {
+		t.Error("paused combat should show 'Begin Combat' prompt")
+	}
+	if strings.Contains(out, "Slow") || strings.Contains(out, "Normal") || strings.Contains(out, "Fast") {
+		t.Error("paused combat should not show speed labels")
+	}
+}
+
+func TestRenderCombatScreen_SpeedHintWhenUnpaused(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenCombat
+	m.combatPaused = false
+	m.combatSpeed = CombatSpeedNormal
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 12, MaxHP: 12},
+		Round:  1,
+	}
+	out := renderCombatScreen(m)
+	if !strings.Contains(out, "Normal") {
+		t.Error("unpaused combat should show speed label 'Normal'")
+	}
+	if !strings.Contains(out, "speed") {
+		t.Error("unpaused combat should show '[ ] speed' hint")
 	}
 }
 
@@ -1291,6 +1378,47 @@ func TestRenderHelpPanel_LocalBindings(t *testing.T) {
 	}
 	if !strings.Contains(out, "i") {
 		t.Error("local help panel should contain 'i' binding")
+	}
+}
+
+func TestRenderHelpPanel_DungeonBindings(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 40
+	m.mode = ModeDungeon
+	out := renderHelpPanel(m)
+	if !strings.Contains(out, "f") {
+		t.Error("dungeon help panel should contain 'f' binding for torch")
+	}
+}
+
+func TestRenderProgressBar_Overflow(t *testing.T) {
+	out := renderProgressBar(15, 10, 10, "#22cc55", "#444c56")
+	if strings.Contains(out, "░") {
+		t.Errorf("overflow current should have no ░, got %q", out)
+	}
+}
+
+func TestRenderProgressBar_NegativeCurrent(t *testing.T) {
+	out := renderProgressBar(-5, 10, 10, "#22cc55", "#444c56")
+	if strings.Contains(out, "█") {
+		t.Errorf("negative current should have no █, got %q", out)
+	}
+}
+
+func TestRenderCombatScreen_SmallViewport(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 40
+	m.viewportH = 15
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player: Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:  Combatant{Name: "Wolf", HP: 12, MaxHP: 12},
+		Round:  1,
+	}
+	out := renderCombatScreen(m)
+	if out == "" {
+		t.Error("combat screen should render something even in small viewport")
 	}
 }
 

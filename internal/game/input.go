@@ -38,6 +38,15 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 	if m.screenMode == ScreenCombat {
 		switch msg.String() {
 		case "enter", "space":
+			// Unpause combat on first Space/Enter press.
+			if m.combatPaused {
+				m.combatPaused = false
+				return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
+			}
+			// During active playback, space/enter is a no-op.
+			if m.combatState != nil && m.combatLogIndex < m.combatState.Round {
+				return m, nil
+			}
 			if m.combatState != nil && m.combatState.PlayerWon {
 				// Victory: remove defeated animal, return to normal.
 				if m.combatEnemy != nil && m.localMap != nil {
@@ -302,8 +311,9 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 					m.combatEnemy = a
 					m.screenMode = ScreenCombat
 					m.combatLogIndex = 0
+					m.combatPaused = true
 					m.paused = true
-					return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
+					return m, nil
 				}
 			}
 		}
@@ -453,6 +463,7 @@ func applyDelta(dx, dy int, m Model) Model {
 				m.combatDungeonEnemy = e
 				m.screenMode = ScreenCombat
 				m.combatLogIndex = 0
+				m.combatPaused = true
 				m.paused = true
 				return m
 			}
