@@ -320,3 +320,36 @@ func TestCombatTickMsg_NoopOutsideCombat(t *testing.T) {
 	}
 }
 
+// ── NewModel starting equipment tests ───────────────────────────────────────
+
+func TestNewModel_WoodenSwordEquipped(t *testing.T) {
+	m := NewModel()
+	sword := m.inventory.Equipped[SlotRightHand]
+	if sword.Name != "Wooden Sword" {
+		t.Fatalf("expected Wooden Sword in right hand, got %q", sword.Name)
+	}
+	if sword.DamageBonus != 1 {
+		t.Fatalf("expected DamageBonus=1, got %d", sword.DamageBonus)
+	}
+}
+
+func TestNewModel_WoodenShieldEquipped(t *testing.T) {
+	m := NewModel()
+	shield := m.inventory.Equipped[SlotLeftHand]
+	if shield.Name != "Wooden Shield" {
+		t.Fatalf("expected Wooden Shield in left hand, got %q", shield.Name)
+	}
+	if shield.ArmourBonus != 1 {
+		t.Fatalf("expected ArmourBonus=1, got %d", shield.ArmourBonus)
+	}
+}
+
+func TestNewModel_StarterItemsNotInInventoryItems(t *testing.T) {
+	m := NewModel()
+	for _, item := range m.inventory.Items {
+		if item.Name == "Wooden Sword" || item.Name == "Wooden Shield" {
+			t.Fatalf("starter item %q should be pre-equipped, not in inventory.Items", item.Name)
+		}
+	}
+}
+

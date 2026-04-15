@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Items may register RoundHooks for combat side effects
 The system SHALL support an optional `CombatHooks(self *Combatant, opponent *Combatant) []RoundHook` pattern where items can produce hooks at combat-start time. In this iteration no items implement this; the mechanism is documented so future item interactions can extend it without restructuring the combat loop.

@@ -63,11 +63,13 @@ type Object struct {
 
 // Item is a carriable entity in the player's inventory.
 type Item struct {
-	Char  rune
-	Color string
-	Name  string
-	Count int
-	Slots []BodySlot // which body slots this item can occupy; empty = not equippable
+	Char        rune
+	Color       string
+	Name        string
+	Count       int
+	Slots       []BodySlot // which body slots this item can occupy; empty = not equippable
+	ArmourBonus int        // added to the wielder's Armour when equipped
+	DamageBonus int        // added to both MinDamage and MaxDamage when equipped
 }
 
 // Inventory holds the player's carried items.
@@ -202,13 +204,14 @@ const NumBodySlots = 6
 
 // Combatant holds all combat-relevant stats for one participant.
 type Combatant struct {
-	Name      string
-	HP        int
-	MaxHP     int
-	Armour    int
-	MinDamage int
-	MaxDamage int
-	Initiative int
+	Name         string
+	HP           int
+	MaxHP        int
+	Armour       int // maximum / starting armour for this encounter
+	CurrentArmour int // remaining armour pool; drains before HP
+	MinDamage    int
+	MaxDamage    int
+	Initiative   int
 }
 
 // RoundHook is a side-effect callback invoked before each round's attacks.

@@ -70,17 +70,20 @@ func buildEnemyCombatant(a Animal) Combatant {
 
 // buildPlayerCombatant constructs the player's Combatant from base stats + equipment.
 func buildPlayerCombatant(m Model) Combatant {
-	c := Combatant{
-		Name:      "Player",
-		HP:        m.playerHP,
-		MaxHP:     m.playerMaxHP,
-		Armour:    0,
-		MinDamage: 1,
-		MaxDamage: 3,
+	var totalArmourBonus, totalDamageBonus int
+	for _, item := range m.inventory.Equipped {
+		totalArmourBonus += item.ArmourBonus
+		totalDamageBonus += item.DamageBonus
+	}
+	return Combatant{
+		Name:       "Player",
+		HP:         m.playerHP,
+		MaxHP:      m.playerMaxHP,
+		Armour:     totalArmourBonus,
+		MinDamage:  1 + totalDamageBonus,
+		MaxDamage:  3 + totalDamageBonus,
 		Initiative: 5,
 	}
-	// Sum equipment bonuses (all zero in this iteration; structure in place for future).
-	return c
 }
 
 // buildCombatHooks collects between-round hooks from equipped items.
@@ -110,6 +113,10 @@ func resolveCombat(player, enemy Combatant, hooks []RoundHook, rng *rand.Rand) C
 	// Work on copies so originals are untouched.
 	p := player
 	e := enemy
+
+	// Initialise current armour to the full pool for this encounter.
+	p.CurrentArmour = p.Armour
+	e.CurrentArmour = e.Armour
 
 	state := CombatState{
 		Player:        p,
@@ -151,15 +158,9 @@ func resolveCombat(player, enemy Combatant, hooks []RoundHook, rng *rand.Rand) C
 		}
 
 		// First combatant attacks.
-		damage := rollDamage(first, second, rng)
-		second.HP -= damage
-		if damage > 0 {
-			state.Log = append(state.Log, fmt.Sprintf("Round %d: %s attacks %s for %d damage (%d HP left)",
-				state.Round, firstName, secondName, damage, second.HP))
-		} else {
-			state.Log = append(state.Log, fmt.Sprintf("Round %d: %s attacks %s but armour absorbs all damage (%d HP left)",
-				state.Round, firstName, secondName, second.HP))
-		}
+		raw := rollRaw(first, rng)
+		armourDrain, hpDrain := applyDamage(raw, second)
+		state.Log = append(state.Log, combatLogLine(state.Round, firstName, secondName, armourDrain, hpDrain, second))
 
 		if second.HP <= 0 {
 			state.Log = append(state.Log, fmt.Sprintf("%s is defeated!", secondName))
@@ -167,15 +168,9 @@ func resolveCombat(player, enemy Combatant, hooks []RoundHook, rng *rand.Rand) C
 		}
 
 		// Second combatant attacks.
-		damage = rollDamage(second, first, rng)
-		first.HP -= damage
-		if damage > 0 {
-			state.Log = append(state.Log, fmt.Sprintf("Round %d: %s attacks %s for %d damage (%d HP left)",
-				state.Round, secondName, firstName, damage, first.HP))
-		} else {
-			state.Log = append(state.Log, fmt.Sprintf("Round %d: %s attacks %s but armour absorbs all damage (%d HP left)",
-				state.Round, secondName, firstName, first.HP))
-		}
+		raw = rollRaw(second, rng)
+		armourDrain, hpDrain = applyDamage(raw, first)
+		state.Log = append(state.Log, combatLogLine(state.Round, secondName, firstName, armourDrain, hpDrain, first))
 
 		if first.HP <= 0 {
 			state.Log = append(state.Log, fmt.Sprintf("%s is defeated!", firstName))
@@ -187,14 +182,53 @@ func resolveCombat(player, enemy Combatant, hooks []RoundHook, rng *rand.Rand) C
 	return state
 }
 
-// rollDamage calculates damage from attacker to defender.
-func rollDamage(attacker, defender *Combatant, rng *rand.Rand) int {
-	raw := rng.Intn(attacker.MaxDamage-attacker.MinDamage+1) + attacker.MinDamage
-	damage := raw - defender.Armour
-	if damage < 0 {
-		damage = 0
+// rollRaw rolls the attacker's raw damage before armour is applied.
+func rollRaw(attacker *Combatant, rng *rand.Rand) int {
+	spread := attacker.MaxDamage - attacker.MinDamage
+	if spread < 0 {
+		spread = 0
 	}
-	return damage
+	return rng.Intn(spread+1) + attacker.MinDamage
+}
+
+// applyDamage drains defender's CurrentArmour first, then HP with any overflow.
+// Returns (armourDrain, hpDrain). Mutates defender in place.
+func applyDamage(raw int, defender *Combatant) (armourDrain, hpDrain int) {
+	if raw <= 0 {
+		return 0, 0
+	}
+	if defender.CurrentArmour <= 0 {
+		defender.HP -= raw
+		return 0, raw
+	}
+	if raw <= defender.CurrentArmour {
+		defender.CurrentArmour -= raw
+		return raw, 0
+	}
+	// raw > CurrentArmour — armour broken, overflow goes to HP.
+	overflow := raw - defender.CurrentArmour
+	armourDrain = defender.CurrentArmour
+	defender.CurrentArmour = 0
+	defender.HP -= overflow
+	return armourDrain, overflow
+}
+
+// combatLogLine builds the appropriate log string based on what was drained.
+func combatLogLine(round int, attacker, defender string, armourDrain, hpDrain int, defenderState *Combatant) string {
+	switch {
+	case armourDrain > 0 && hpDrain == 0:
+		return fmt.Sprintf("Round %d: %s attacks %s — absorbs %d (Armour: %d)",
+			round, attacker, defender, armourDrain, defenderState.CurrentArmour)
+	case armourDrain > 0 && hpDrain > 0:
+		return fmt.Sprintf("Round %d: %s attacks %s — armour broken, %d HP damage (%d HP, 0 Armour)",
+			round, attacker, defender, hpDrain, defenderState.HP)
+	case hpDrain > 0:
+		return fmt.Sprintf("Round %d: %s attacks %s for %d damage (%d HP left)",
+			round, attacker, defender, hpDrain, defenderState.HP)
+	default:
+		return fmt.Sprintf("Round %d: %s attacks %s but deals no damage",
+			round, attacker, defender)
+	}
 }
 
 // combatLogLinesUpTo returns log lines up to (but not including) the (roundIndex+1)-th
@@ -231,26 +265,59 @@ func combatLogLinesUpTo(log []string, roundIndex int) []string {
 func hpAtRound(startHP int, log []string, roundIndex int, combatantName string) int {
 	visible := combatLogLinesUpTo(log, roundIndex)
 	hp := startHP
-	// Log format: "Round N: <attacker> attacks <target> for D damage (H HP left)"
-	needle := "attacks " + combatantName + " for "
+	// Pure HP hit: "Round N: <attacker> attacks <target> for D damage (H HP left)"
+	needleFor := "attacks " + combatantName + " for "
+	// Armour-broken hit: "Round N: <attacker> attacks <target> — armour broken, D HP damage ..."
+	needleBroken := "attacks " + combatantName + " — armour broken, "
 	for _, line := range visible {
-		idx := strings.Index(line, needle)
-		if idx < 0 {
-			continue
+		if idx := strings.Index(line, needleFor); idx >= 0 {
+			rest := line[idx+len(needleFor):]
+			hp -= parseLeadingInt(rest)
+		} else if idx := strings.Index(line, needleBroken); idx >= 0 {
+			rest := line[idx+len(needleBroken):]
+			hp -= parseLeadingInt(rest)
 		}
-		rest := line[idx+len(needle):]
-		n := 0
-		for _, c := range rest {
-			if c >= '0' && c <= '9' {
-				n = n*10 + int(c-'0')
-			} else {
-				break
-			}
-		}
-		hp -= n
 	}
 	if hp < 0 {
 		hp = 0
 	}
 	return hp
+}
+
+// armourAtRound computes a combatant's current armour after all hits through the given round index.
+func armourAtRound(log []string, roundIndex int, combatantName string, startArmour int) int {
+	visible := combatLogLinesUpTo(log, roundIndex)
+	// Armour-only hit: "... attacks <target> — absorbs D (Armour: A)" — extract remaining from "(Armour: A)"
+	needleAbsorb := "attacks " + combatantName + " — absorbs "
+	// Armour-broken: "... attacks <target> — armour broken, ..." — armour goes to 0
+	needleBroken := "attacks " + combatantName + " — armour broken,"
+	armour := startArmour
+	for _, line := range visible {
+		if strings.Contains(line, needleBroken) {
+			armour = 0
+		} else if idx := strings.Index(line, needleAbsorb); idx >= 0 {
+			// Parse the remaining armour from "(Armour: A)"
+			if ai := strings.Index(line[idx:], "(Armour: "); ai >= 0 {
+				rest := line[idx+ai+len("(Armour: "):]
+				armour = parseLeadingInt(rest)
+			}
+		}
+	}
+	if armour < 0 {
+		armour = 0
+	}
+	return armour
+}
+
+// parseLeadingInt reads the leading decimal integer from s, stopping at the first non-digit.
+func parseLeadingInt(s string) int {
+	n := 0
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			n = n*10 + int(c-'0')
+		} else {
+			break
+		}
+	}
+	return n
 }

@@ -382,8 +382,11 @@ func renderHUD(m Model) string {
 	clock := formatTime(m.timeOfDay)
 	speed := fmt.Sprintf("%d×", m.timeScale)
 
-	// Compute armour from equipped items (currently all items have 0 armour bonus).
+	// Compute armour from equipped items.
 	armour := 0
+	for _, item := range m.inventory.Equipped {
+		armour += item.ArmourBonus
+	}
 
 	// Always use perceivedTemperature so the HUD reading is consistent with the
 	// temperature map overlay and reflects the biome's felt heat.
@@ -1077,8 +1080,9 @@ func renderHeroPanel(m Model, width, height int) string {
 	}
 	lines = append(lines, "")
 
-	// Player stats using HP at current round.
+	// Player stats using HP and armour at current round.
 	playerHP := hpAtRound(cs.PlayerStartHP, cs.Log, m.combatLogIndex, cs.Player.Name)
+	playerArmour := armourAtRound(cs.Log, m.combatLogIndex, cs.Player.Name, cs.Player.Armour)
 	barW := width - 4
 	if barW < 5 {
 		barW = 5
@@ -1088,7 +1092,7 @@ func renderHeroPanel(m Model, width, height int) string {
 	}
 	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  %s", cs.Player.Name)))
 	lines = append(lines, fmt.Sprintf("  %s HP %d/%d", renderProgressBar(playerHP, cs.Player.MaxHP, barW, "#22cc55", "#444c56"), playerHP, cs.Player.MaxHP))
-	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  ARM:%d  DMG:%d-%d  Init:%d", cs.Player.Armour, cs.Player.MinDamage, cs.Player.MaxDamage, cs.Player.Initiative)))
+	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  ARM:%d/%d  DMG:%d-%d  Init:%d", playerArmour, cs.Player.Armour, cs.Player.MinDamage, cs.Player.MaxDamage, cs.Player.Initiative)))
 
 	// Pad to height
 	for len(lines) < height {
@@ -1142,8 +1146,9 @@ func renderEnemyPanel(m Model, width, height int) string {
 	}
 	lines = append(lines, "")
 
-	// Enemy stats using HP at current round.
+	// Enemy stats using HP and armour at current round.
 	enemyHP := hpAtRound(cs.EnemyStartHP, cs.Log, m.combatLogIndex, cs.Enemy.Name)
+	enemyArmour := armourAtRound(cs.Log, m.combatLogIndex, cs.Enemy.Name, cs.Enemy.Armour)
 	barW := width - 4
 	if barW < 5 {
 		barW = 5
@@ -1153,7 +1158,7 @@ func renderEnemyPanel(m Model, width, height int) string {
 	}
 	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  %s", cs.Enemy.Name)))
 	lines = append(lines, fmt.Sprintf("  %s HP %d/%d", renderProgressBar(enemyHP, cs.Enemy.MaxHP, barW, "#ff5555", "#444c56"), enemyHP, cs.Enemy.MaxHP))
-	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  ARM:%d  DMG:%d-%d  Init:%d", cs.Enemy.Armour, cs.Enemy.MinDamage, cs.Enemy.MaxDamage, cs.Enemy.Initiative)))
+	lines = append(lines, combatStatStyle.Render(fmt.Sprintf("  ARM:%d/%d  DMG:%d-%d  Init:%d", enemyArmour, cs.Enemy.Armour, cs.Enemy.MinDamage, cs.Enemy.MaxDamage, cs.Enemy.Initiative)))
 
 	// Pad to height
 	for len(lines) < height {

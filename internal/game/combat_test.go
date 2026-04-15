@@ -24,29 +24,22 @@ func TestCombatant_InitiativeOrder(t *testing.T) {
 
 // ── Armour absorbs damage ───────────────────────────────────────────────────
 
-func TestCombatant_ArmourReducesToZero(t *testing.T) {
-	// Attacker deals 3 fixed damage, defender has 5 armour → 0 net damage.
+func TestCombatant_ArmourAbsorbsBeforeHP(t *testing.T) {
+	// Attacker deals 3 fixed damage; defender has 5 armour → armour absorbs, no HP loss.
 	attacker := Combatant{Name: "Weak", HP: 100, MaxHP: 100, MinDamage: 3, MaxDamage: 3, Initiative: 10}
 	defender := Combatant{Name: "Tank", HP: 100, MaxHP: 100, Armour: 5, MinDamage: 3, MaxDamage: 3, Initiative: 1}
 	rng := rand.New(rand.NewSource(1))
 	state := resolveCombat(attacker, defender, nil, rng)
-	// After many rounds neither should die if all damage is absorbed both ways.
-	// Actually defender also attacks with 3 damage vs attacker armour 0 → attacker takes damage.
-	// The test just verifies the first round: attacker deals 0 to defender.
-	if state.Enemy.HP < defender.HP {
-		// Defender lost HP — armour didn't absorb. This is fine since the second combatant
-		// attacks the first. Let's check the log for "armour absorbs" on the first line.
-	}
-	// Check that the first log line mentions armour absorb.
+	// Verify the first attack log line shows armour absorbing.
 	found := false
 	for _, line := range state.Log {
-		if strings.Contains(line, "Weak attacks Tank") && strings.Contains(line, "armour absorbs") {
+		if strings.Contains(line, "Weak attacks Tank") && strings.Contains(line, "absorbs") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected an armour absorption log line; log: %v", state.Log)
+		t.Errorf("expected an armour-absorb log line; log: %v", state.Log)
 	}
 }
 
@@ -162,11 +155,12 @@ func TestBuildPlayerCombatant_BaseStats(t *testing.T) {
 	if c.HP != 20 || c.MaxHP != 20 {
 		t.Fatalf("player HP should be 20, got %d/%d", c.HP, c.MaxHP)
 	}
-	if c.Armour != 0 {
-		t.Fatalf("player Armour should be 0, got %d", c.Armour)
+	// Default outfit: Wooden Shield (+1 armour), Wooden Sword (+1 damage).
+	if c.Armour != 1 {
+		t.Fatalf("player Armour should be 1 (shield bonus), got %d", c.Armour)
 	}
-	if c.MinDamage != 1 || c.MaxDamage != 3 {
-		t.Fatalf("player damage should be 1-3, got %d-%d", c.MinDamage, c.MaxDamage)
+	if c.MinDamage != 2 || c.MaxDamage != 4 {
+		t.Fatalf("player damage should be 2-4 (sword bonus), got %d-%d", c.MinDamage, c.MaxDamage)
 	}
 	if c.Initiative != 5 {
 		t.Fatalf("player Initiative should be 5, got %d", c.Initiative)
@@ -284,5 +278,192 @@ func TestHpAtRound_TakesOneDamage(t *testing.T) {
 	hp := hpAtRound(20, log, 1, "Hero")
 	if hp != 15 {
 		t.Fatalf("expected 15, got %d", hp)
+	}
+}
+
+// ── applyDamage tests ────────────────────────────────────────────────────────
+
+func TestApplyDamage_FullAbsorption(t *testing.T) {
+	d := &Combatant{HP: 10, CurrentArmour: 3}
+	ad, hd := applyDamage(2, d)
+	if ad != 2 || hd != 0 {
+		t.Fatalf("expected armourDrain=2 hpDrain=0, got %d %d", ad, hd)
+	}
+	if d.CurrentArmour != 1 {
+		t.Fatalf("expected CurrentArmour=1, got %d", d.CurrentArmour)
+	}
+	if d.HP != 10 {
+		t.Fatalf("expected HP unchanged=10, got %d", d.HP)
+	}
+}
+
+func TestApplyDamage_ArmourBrokenWithOverflow(t *testing.T) {
+	d := &Combatant{HP: 10, CurrentArmour: 2}
+	ad, hd := applyDamage(5, d)
+	if ad != 2 || hd != 3 {
+		t.Fatalf("expected armourDrain=2 hpDrain=3, got %d %d", ad, hd)
+	}
+	if d.CurrentArmour != 0 {
+		t.Fatalf("expected CurrentArmour=0, got %d", d.CurrentArmour)
+	}
+	if d.HP != 7 {
+		t.Fatalf("expected HP=7, got %d", d.HP)
+	}
+}
+
+func TestApplyDamage_DirectHPWhenNoArmour(t *testing.T) {
+	d := &Combatant{HP: 10, CurrentArmour: 0}
+	ad, hd := applyDamage(4, d)
+	if ad != 0 || hd != 4 {
+		t.Fatalf("expected armourDrain=0 hpDrain=4, got %d %d", ad, hd)
+	}
+	if d.HP != 6 {
+		t.Fatalf("expected HP=6, got %d", d.HP)
+	}
+}
+
+func TestApplyDamage_ZeroRawIsNoop(t *testing.T) {
+	d := &Combatant{HP: 10, CurrentArmour: 3}
+	ad, hd := applyDamage(0, d)
+	if ad != 0 || hd != 0 {
+		t.Fatalf("expected 0,0 got %d %d", ad, hd)
+	}
+	if d.HP != 10 || d.CurrentArmour != 3 {
+		t.Fatalf("state should be unchanged: HP=%d Armour=%d", d.HP, d.CurrentArmour)
+	}
+}
+
+// ── resolveCombat log format tests ──────────────────────────────────────────
+
+func TestResolveCombat_ArmourOnlyHitLogLine(t *testing.T) {
+	// Player has high enough armour to fully absorb the enemy's fixed 1 damage hit.
+	// Enemy has no armour; player always goes first (higher initiative).
+	player := Combatant{Name: "Player", HP: 100, MaxHP: 100, Armour: 10, MinDamage: 1, MaxDamage: 1, Initiative: 10}
+	enemy := Combatant{Name: "Rat", HP: 5, MaxHP: 5, Armour: 0, MinDamage: 1, MaxDamage: 1, Initiative: 1}
+	rng := rand.New(rand.NewSource(0))
+	state := resolveCombat(player, enemy, nil, rng)
+	// Find a line where Rat attacks Player and armour absorbs.
+	found := false
+	for _, line := range state.Log {
+		if strings.Contains(line, "Rat attacks Player — absorbs") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected armour-absorb log line; log: %v", state.Log)
+	}
+}
+
+func TestResolveCombat_ArmourBrokenLogLine(t *testing.T) {
+	// Player has 1 armour; enemy deals exactly 3 damage → armour broken + 2 HP overflow.
+	player := Combatant{Name: "Player", HP: 20, MaxHP: 20, Armour: 1, MinDamage: 10, MaxDamage: 10, Initiative: 1}
+	enemy := Combatant{Name: "Orc", HP: 100, MaxHP: 100, Armour: 0, MinDamage: 3, MaxDamage: 3, Initiative: 10}
+	rng := rand.New(rand.NewSource(0))
+	state := resolveCombat(player, enemy, nil, rng)
+	found := false
+	for _, line := range state.Log {
+		if strings.Contains(line, "Orc attacks Player — armour broken") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected armour-broken log line; log: %v", state.Log)
+	}
+}
+
+func TestResolveCombat_NoDamageLogLine(t *testing.T) {
+	// Attacker has MinDamage=MaxDamage=0 so raw is always 0.
+	player := Combatant{Name: "Player", HP: 20, MaxHP: 20, MinDamage: 0, MaxDamage: 0, Initiative: 10}
+	enemy := Combatant{Name: "Ghost", HP: 5, MaxHP: 5, MinDamage: 10, MaxDamage: 10, Initiative: 1}
+	rng := rand.New(rand.NewSource(0))
+	state := resolveCombat(player, enemy, nil, rng)
+	found := false
+	for _, line := range state.Log {
+		if strings.Contains(line, "Player attacks Ghost but deals no damage") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected no-damage log line; log: %v", state.Log)
+	}
+}
+
+// ── buildPlayerCombatant bonus tests ────────────────────────────────────────
+
+func TestBuildPlayerCombatant_WoodenSwordBonus(t *testing.T) {
+	m := NewModel()
+	// NewModel equips Wooden Sword (DamageBonus: 1) and Wooden Shield (ArmourBonus: 1) by default.
+	c := buildPlayerCombatant(m)
+	if c.MinDamage != 2 {
+		t.Fatalf("expected MinDamage=2 (base 1 + sword +1), got %d", c.MinDamage)
+	}
+	if c.MaxDamage != 4 {
+		t.Fatalf("expected MaxDamage=4 (base 3 + sword +1), got %d", c.MaxDamage)
+	}
+}
+
+func TestBuildPlayerCombatant_WoodenShieldBonus(t *testing.T) {
+	m := NewModel()
+	c := buildPlayerCombatant(m)
+	if c.Armour != 1 {
+		t.Fatalf("expected Armour=1 (shield +1), got %d", c.Armour)
+	}
+}
+
+func TestBuildPlayerCombatant_StackingBonuses(t *testing.T) {
+	m := NewModel()
+	// Add a second DamageBonus item to head slot.
+	m.inventory.Equipped[SlotHead] = Item{Name: "Pointy Hat", DamageBonus: 1}
+	c := buildPlayerCombatant(m)
+	if c.MaxDamage != 5 {
+		t.Fatalf("expected MaxDamage=5 (base 3 + sword +1 + hat +1), got %d", c.MaxDamage)
+	}
+}
+
+func TestBuildPlayerCombatant_EmptySlotsNoBonus(t *testing.T) {
+	m := NewModel()
+	// Clear all equipped items.
+	m.inventory.Equipped = [NumBodySlots]Item{}
+	c := buildPlayerCombatant(m)
+	if c.Armour != 0 {
+		t.Fatalf("expected Armour=0 with empty slots, got %d", c.Armour)
+	}
+	if c.MinDamage != 1 || c.MaxDamage != 3 {
+		t.Fatalf("expected base damage 1-3, got %d-%d", c.MinDamage, c.MaxDamage)
+	}
+}
+
+// ── armourAtRound tests ─────────────────────────────────────────────────────
+
+func TestArmourAtRound_RoundZeroReturnsStart(t *testing.T) {
+	log := []string{
+		"Round 1: Enemy attacks Player — absorbs 1 (Armour: 2)",
+	}
+	a := armourAtRound(log, 0, "Player", 3)
+	if a != 3 {
+		t.Fatalf("expected startArmour=3 at round 0, got %d", a)
+	}
+}
+
+func TestArmourAtRound_DecrementsOnAbsorb(t *testing.T) {
+	log := []string{
+		"Round 1: Enemy attacks Player — absorbs 1 (Armour: 2)",
+	}
+	a := armourAtRound(log, 1, "Player", 3)
+	if a != 2 {
+		t.Fatalf("expected armour=2 after absorb, got %d", a)
+	}
+}
+
+func TestArmourAtRound_ZeroAfterBroken(t *testing.T) {
+	log := []string{
+		"Round 1: Enemy attacks Player — armour broken, 3 HP damage (7 HP, 0 Armour)",
+	}
+	a := armourAtRound(log, 1, "Player", 2)
+	if a != 0 {
+		t.Fatalf("expected armour=0 after broken, got %d", a)
 	}
 }

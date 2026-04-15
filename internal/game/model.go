@@ -74,6 +74,8 @@ func defaultOutfit() [NumBodySlots]Item {
 	eq[SlotChest] = Item{Char: '♦', Color: "#a0a0a0", Name: "Cloth Tunic", Count: 1, Slots: []BodySlot{SlotChest}}
 	eq[SlotLegs] = Item{Char: '‖', Color: "#a0a0a0", Name: "Cloth Pants", Count: 1, Slots: []BodySlot{SlotLegs}}
 	eq[SlotFeet] = Item{Char: '∩', Color: "#8B4513", Name: "Leather Boots", Count: 1, Slots: []BodySlot{SlotFeet}}
+	eq[SlotRightHand] = Item{Char: '/', Color: "#c8a96e", Name: "Wooden Sword", Count: 1, Slots: []BodySlot{SlotRightHand}, DamageBonus: 1}
+	eq[SlotLeftHand] = Item{Char: 'O', Color: "#8B6914", Name: "Wooden Shield", Count: 1, Slots: []BodySlot{SlotLeftHand}, ArmourBonus: 1}
 	return eq
 }
 

@@ -1314,8 +1314,9 @@ func TestRenderHUD_ContainsArmour(t *testing.T) {
 	m.viewportW = 120
 	m.viewportH = 24
 	out := renderHUD(m)
-	if !strings.Contains(out, "ARM:0") {
-		t.Errorf("HUD should contain 'ARM:0', got: %s", out)
+	// Default outfit includes Wooden Shield (+1 ArmourBonus), so ARM:1 is expected.
+	if !strings.Contains(out, "ARM:1") {
+		t.Errorf("HUD should contain 'ARM:1' (shield bonus), got: %s", out)
 	}
 }
 
