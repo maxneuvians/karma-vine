@@ -1227,6 +1227,9 @@ func renderCombatLog(m Model, width, height int) string {
 	if m.combatLogIndex >= cs.Round {
 		if cs.PlayerWon {
 			lines = append(lines, combatVictoryStyle.Render("  Victory!"))
+			if cs.LootMsg != "" {
+				lines = append(lines, combatStatStyle.Render("  "+cs.LootMsg))
+			}
 			lines = append(lines, sidebarSubStyle.Render("  press enter to continue"))
 		} else {
 			lines = append(lines, combatDefeatStyle.Render("  Defeated!"))

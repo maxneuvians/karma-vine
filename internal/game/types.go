@@ -227,6 +227,8 @@ type CombatState struct {
 	PlayerWon    bool
 	PlayerStartHP int // HP player had at the start of this combat
 	EnemyStartHP  int // HP enemy had at the start of this combat
+	PendingLoot   Item   // pre-rolled loot item to apply on victory dismiss
+	LootMsg       string // human-readable loot line shown in the victory banner
 }
 
 // LootEntry is a single weighted item in an enemy's loot table.

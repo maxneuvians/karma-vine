@@ -332,6 +332,11 @@ func moveEnemies(m Model) Model {
 			enemy := buildDungeonEnemyCombatant(e)
 			hooks := buildCombatHooks(m)
 			state := resolveCombat(player, enemy, hooks, rand.New(rand.NewSource(rand.Int63())))
+			if len(e.Template.LootTable) > 0 {
+				loot := resolveEnemyLoot(e.Template.LootTable, rand.New(rand.NewSource(rand.Int63())))
+				state.PendingLoot = loot
+				state.LootMsg = lootMsg(loot)
+			}
 			m.combatState = &state
 			m.combatDungeonEnemy = e
 			m.screenMode = ScreenCombat

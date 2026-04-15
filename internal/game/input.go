@@ -1,11 +1,24 @@
 package game
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
+
+// lootMsg returns a human-readable string for a loot item, or empty string when
+// no item was dropped.
+func lootMsg(item Item) string {
+	if item.Name == "" {
+		return ""
+	}
+	if item.Count > 1 {
+		return fmt.Sprintf("Looted: %s x%d", item.Name, item.Count)
+	}
+	return fmt.Sprintf("Looted: %s", item.Name)
+}
 
 // handleKey processes a key event and returns an updated Model and command.
 func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
@@ -57,9 +70,9 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 						}
 					}
 				}
-				// Victory: remove defeated dungeon enemy, resolve loot.
+				// Victory: remove defeated dungeon enemy, apply pre-rolled loot.
 				if m.combatDungeonEnemy != nil && m.currentDungeon != nil {
-					loot := resolveEnemyLoot(m.combatDungeonEnemy.Template.LootTable, rand.New(rand.NewSource(rand.Int63())))
+					loot := m.combatState.PendingLoot
 					if loot.Name != "" && len(m.inventory.Items) < InventoryMaxSlots {
 						// Stack if same name exists.
 						stacked := false
@@ -345,8 +358,8 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 			// Do NOT nil-out m.localMap — it stays in localCache
 		}
 	}
-	// If movement triggered combat, schedule the first combat tick.
-	if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 {
+	// If movement triggered combat, schedule the first combat tick (skip when paused).
+	if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 && !m.combatPaused {
 		return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
 	}
 	return m, nil
@@ -928,8 +941,8 @@ func handleMouseClick(msg tea.MouseClickMsg, m Model) (Model, tea.Cmd) {
 	}
 
 	m = applyDelta(stepX, stepY, m)
-	// If movement triggered combat, schedule the first combat tick.
-	if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 {
+	// If movement triggered combat, schedule the first combat tick (skip when paused).
+	if m.screenMode == ScreenCombat && m.combatState != nil && m.combatLogIndex == 0 && !m.combatPaused {
 		return m, tea.Tick(combatSpeedDuration(m.combatSpeed), func(t time.Time) tea.Msg { return CombatTickMsg{} })
 	}
 	return m, nil

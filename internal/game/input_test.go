@@ -1376,9 +1376,11 @@ func TestLootAddedToInventoryAfterVictory(t *testing.T) {
 	m.currentDungeon = level
 	m.combatDungeonEnemy = enemy
 	m.combatState = &CombatState{
-		PlayerWon: true,
-		Player:    Combatant{Name: "Player", HP: 18, MaxHP: 20},
-		Enemy:     Combatant{Name: "Test", HP: 0, MaxHP: 1},
+		PlayerWon:   true,
+		Player:      Combatant{Name: "Player", HP: 18, MaxHP: 20},
+		Enemy:       Combatant{Name: "Test", HP: 0, MaxHP: 1},
+		PendingLoot: Item{Char: '!', Color: "#ff0", Name: "TestLoot", Count: 1},
+		LootMsg:     "Looted: TestLoot",
 	}
 
 	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
@@ -1416,9 +1418,10 @@ func TestLootDiscardedWhenInventoryFull(t *testing.T) {
 	m.currentDungeon = level
 	m.combatDungeonEnemy = enemy
 	m.combatState = &CombatState{
-		PlayerWon: true,
-		Player:    Combatant{Name: "Player", HP: 20, MaxHP: 20},
-		Enemy:     Combatant{Name: "Test", HP: 0, MaxHP: 1},
+		PlayerWon:   true,
+		Player:      Combatant{Name: "Player", HP: 20, MaxHP: 20},
+		Enemy:       Combatant{Name: "Test", HP: 0, MaxHP: 1},
+		PendingLoot: Item{Name: "TestLoot", Count: 1},
 	}
 
 	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
