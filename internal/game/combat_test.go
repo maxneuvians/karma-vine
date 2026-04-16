@@ -155,9 +155,9 @@ func TestBuildPlayerCombatant_BaseStats(t *testing.T) {
 	if c.HP != 20 || c.MaxHP != 20 {
 		t.Fatalf("player HP should be 20, got %d/%d", c.HP, c.MaxHP)
 	}
-	// Default outfit: Wooden Shield (+1 armour), Wooden Sword (+1 damage).
-	if c.Armour != 1 {
-		t.Fatalf("player Armour should be 1 (shield bonus), got %d", c.Armour)
+	// Default outfit: Cloth Tunic (+1), Cloth Pants (+1), Leather Boots (+1), Wooden Shield (+1) = 4 armour.
+	if c.Armour != 4 {
+		t.Fatalf("player Armour should be 4 (tunic+pants+boots+shield), got %d", c.Armour)
 	}
 	if c.MinDamage != 2 || c.MaxDamage != 4 {
 		t.Fatalf("player damage should be 2-4 (sword bonus), got %d-%d", c.MinDamage, c.MaxDamage)
@@ -408,8 +408,9 @@ func TestBuildPlayerCombatant_WoodenSwordBonus(t *testing.T) {
 func TestBuildPlayerCombatant_WoodenShieldBonus(t *testing.T) {
 	m := NewModel()
 	c := buildPlayerCombatant(m)
-	if c.Armour != 1 {
-		t.Fatalf("expected Armour=1 (shield +1), got %d", c.Armour)
+	// Default outfit: Cloth Tunic (+1), Cloth Pants (+1), Leather Boots (+1), Wooden Shield (+1) = 4.
+	if c.Armour != 4 {
+		t.Fatalf("expected Armour=4 (tunic+pants+boots+shield), got %d", c.Armour)
 	}
 }
 

@@ -214,7 +214,7 @@ func GenerateDungeonLevel(globalSeed, wx, wy, depth, maxDepth int, biome Biome) 
 	rng.Shuffle(len(enemyPositions), func(i, j int) {
 		enemyPositions[i], enemyPositions[j] = enemyPositions[j], enemyPositions[i]
 	})
-	enemyCount := depth
+	enemyCount := max(3, depth)
 	if enemyCount > len(enemyPositions) {
 		enemyCount = len(enemyPositions)
 	}

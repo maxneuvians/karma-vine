@@ -144,3 +144,33 @@ func TestRenderPortrait_EmptyPortrait(t *testing.T) {
 		t.Errorf("expected empty string for empty portrait, got %q", out)
 	}
 }
+
+// ── enemyPortraitByName tests ─────────────────────────────────────────────────
+
+func TestEnemyPortraitByName_Humanoid(t *testing.T) {
+	p := enemyPortraitByName("Goblin")
+	if p != humanoidPortrait {
+		t.Fatal("enemyPortraitByName('Goblin') should return humanoidPortrait")
+	}
+}
+
+func TestEnemyPortraitByName_Beast(t *testing.T) {
+	p := enemyPortraitByName("Cave Crustacean")
+	if p != beastPortrait {
+		t.Fatal("enemyPortraitByName('Cave Crustacean') should return beastPortrait")
+	}
+}
+
+func TestEnemyPortraitByName_Undead(t *testing.T) {
+	p := enemyPortraitByName("Sand Wraith")
+	if p != undeadPortrait {
+		t.Fatal("enemyPortraitByName('Sand Wraith') should return undeadPortrait")
+	}
+}
+
+func TestEnemyPortraitByName_Unknown(t *testing.T) {
+	p := enemyPortraitByName("Unknown Monster")
+	if p != fallbackPortrait {
+		t.Fatal("enemyPortraitByName('Unknown Monster') should return fallbackPortrait")
+	}
+}

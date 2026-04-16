@@ -16,7 +16,7 @@ var dungeonEnemyRoster = map[Biome]*EnemyTemplate{
 		LootTable: []LootEntry{
 			{Item: Item{}, Weight: 3},
 			{Item: Item{Char: '◊', Color: "#88aa66", Name: "Goblin Ear", Count: 1}, Weight: 2},
-			{Item: Item{Char: '†', Color: "#aa8866", Name: "Rusty Dagger", Count: 1}, Weight: 1},
+			{Item: Item{Char: '†', Color: "#aa8866", Name: "Rusty Dagger", Count: 1, DamageBonus: 1}, Weight: 1},
 		},
 	},
 	DenseForest: {
@@ -27,7 +27,7 @@ var dungeonEnemyRoster = map[Biome]*EnemyTemplate{
 		LootTable: []LootEntry{
 			{Item: Item{}, Weight: 3},
 			{Item: Item{Char: '◊', Color: "#88aa66", Name: "Goblin Ear", Count: 1}, Weight: 2},
-			{Item: Item{Char: '†', Color: "#aa8866", Name: "Rusty Dagger", Count: 1}, Weight: 1},
+			{Item: Item{Char: '†', Color: "#aa8866", Name: "Rusty Dagger", Count: 1, DamageBonus: 1}, Weight: 1},
 		},
 	},
 	Plains: {
@@ -38,7 +38,7 @@ var dungeonEnemyRoster = map[Biome]*EnemyTemplate{
 		LootTable: []LootEntry{
 			{Item: Item{}, Weight: 3},
 			{Item: Item{Char: '○', Color: "#ccaa44", Name: "Gold Coin", Count: 1}, Weight: 2},
-			{Item: Item{Char: '†', Color: "#aaaaaa", Name: "Short Sword", Count: 1}, Weight: 1},
+			{Item: Item{Char: '†', Color: "#aaaaaa", Name: "Short Sword", Count: 1, DamageBonus: 2}, Weight: 1},
 		},
 	},
 	Desert: {

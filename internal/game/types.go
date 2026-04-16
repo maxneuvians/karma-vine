@@ -185,6 +185,7 @@ const (
 	ScreenNormal    ScreenMode = iota // normal map/HUD view
 	ScreenInventory                   // fullscreen inventory overlay
 	ScreenCombat                      // fullscreen combat screen
+	ScreenDeath                       // fullscreen death screen
 )
 
 // BodySlot identifies one of the six wearable slots on the player's body.

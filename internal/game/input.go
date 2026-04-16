@@ -101,8 +101,10 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 				m.combatEnemy = nil
 				m.combatDungeonEnemy = nil
 			} else {
-				// Defeat: quit.
-				return m, tea.Quit
+				// Defeat: show death screen instead of quitting.
+				m.deathKiller = m.combatState.Enemy.Name
+				m.screenMode = ScreenDeath
+				return m, nil
 			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -112,6 +114,20 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 		case "[":
 			m.combatSpeed = max(CombatSpeedSlow, m.combatSpeed-1)
 			return m, nil
+		}
+		return m, nil
+	}
+
+	// While the death screen is shown, only r (restart) and q (quit) are active.
+	if m.screenMode == ScreenDeath {
+		switch msg.String() {
+		case "r":
+			fresh := NewModel()
+			fresh.viewportW = m.viewportW
+			fresh.viewportH = m.viewportH
+			return fresh, tickCmd()
+		case "q", "ctrl+c":
+			return m, tea.Quit
 		}
 		return m, nil
 	}
@@ -338,6 +354,16 @@ func handleKey(msg tea.KeyPressMsg, m Model) (Model, tea.Cmd) {
 	case "u":
 		if m.mode == ModeLocal || m.mode == ModeDungeon {
 			m = handleUse(m)
+		}
+
+	// Rest at campfire
+	case "r":
+		if m.mode == ModeLocal && m.localMap != nil {
+			px, py := m.playerPos.X, m.playerPos.Y
+			if m.localMap.Ground[px][py].HasFire && m.restCooldown == 0 {
+				m.playerHP = min(m.playerHP+5, m.playerMaxHP)
+				m.restCooldown = 60
+			}
 		}
 
 	// Ascend from dungeon / local map

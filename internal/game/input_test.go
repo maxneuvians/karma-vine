@@ -1284,14 +1284,21 @@ func TestHandleKey_EnterDismissesVictory(t *testing.T) {
 	}
 }
 
-func TestHandleKey_EnterQuitsOnDefeat(t *testing.T) {
+func TestHandleKey_EnterShowsDeathScreenOnDefeat(t *testing.T) {
 	m := NewModel()
 	m.screenMode = ScreenCombat
-	m.combatState = &CombatState{PlayerWon: false}
+	m.combatState = &CombatState{
+		PlayerWon: false,
+		Enemy:     Combatant{Name: "Goblin"},
+		Round:     0,
+	}
 
-	_, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
-	if cmd == nil {
-		t.Fatal("enter on defeat: expected non-nil quit command")
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if result.screenMode != ScreenDeath {
+		t.Fatalf("enter on defeat: expected ScreenDeath, got %d", result.screenMode)
+	}
+	if cmd != nil {
+		t.Fatal("enter on defeat: should not quit immediately")
 	}
 }
 
@@ -1579,5 +1586,136 @@ func TestCombatActive_SpaceIsNoOp(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Fatal("Space during active playback should not schedule additional tick")
+	}
+}
+
+// ── Campfire resting tests ───────────────────────────────────────────────────
+
+func makeLocalModelWithFire(playerOnFire bool) Model {
+	m := NewModel()
+	m.mode = ModeLocal
+	lm := &LocalMap{}
+	// Place player at (5,5)
+	m.playerPos = LocalCoord{X: 5, Y: 5}
+	if playerOnFire {
+		lm.Ground[5][5] = Ground{Char: '.', Color: "#888", Passable: true, HasFire: true}
+	} else {
+		lm.Ground[5][5] = Ground{Char: '.', Color: "#888", Passable: true}
+	}
+	m.localMap = lm
+	return m
+}
+
+func TestRest_OnFireCell_Heals5HP(t *testing.T) {
+	m := makeLocalModelWithFire(true)
+	m.playerHP = 10
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'r', Text: "r"}, m)
+	if result.playerHP != 15 {
+		t.Fatalf("expected playerHP=15, got %d", result.playerHP)
+	}
+	if result.restCooldown != 60 {
+		t.Fatalf("expected restCooldown=60, got %d", result.restCooldown)
+	}
+}
+
+func TestRest_CapsAtMaxHP(t *testing.T) {
+	m := makeLocalModelWithFire(true)
+	m.playerHP = m.playerMaxHP - 2
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'r', Text: "r"}, m)
+	if result.playerHP != m.playerMaxHP {
+		t.Fatalf("expected playerHP=%d (capped), got %d", m.playerMaxHP, result.playerHP)
+	}
+}
+
+func TestRest_OnNonFireCell_IsNoOp(t *testing.T) {
+	m := makeLocalModelWithFire(false)
+	m.playerHP = 10
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'r', Text: "r"}, m)
+	if result.playerHP != 10 {
+		t.Fatalf("expected playerHP unchanged=10, got %d", result.playerHP)
+	}
+	if result.restCooldown != 0 {
+		t.Fatalf("expected restCooldown unchanged=0, got %d", result.restCooldown)
+	}
+}
+
+func TestRest_DuringCooldown_IsNoOp(t *testing.T) {
+	m := makeLocalModelWithFire(true)
+	m.playerHP = 10
+	m.restCooldown = 30
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'r', Text: "r"}, m)
+	if result.playerHP != 10 {
+		t.Fatalf("expected playerHP unchanged=10, got %d", result.playerHP)
+	}
+}
+
+func TestRest_InDungeonMode_IsNoOp(t *testing.T) {
+	m := NewModel()
+	m.mode = ModeDungeon
+	m.playerHP = 10
+	result, _ := handleKey(tea.KeyPressMsg{Code: 'r', Text: "r"}, m)
+	if result.playerHP != 10 {
+		t.Fatalf("expected playerHP unchanged in dungeon mode, got %d", result.playerHP)
+	}
+}
+
+// ── Death screen tests ───────────────────────────────────────────────────────
+
+func makeDefeatedModel() Model {
+	m := NewModel()
+	m.screenMode = ScreenCombat
+	m.combatState = &CombatState{
+		Player:    Combatant{Name: "Player", HP: 0, MaxHP: 20},
+		Enemy:     Combatant{Name: "Goblin", HP: 5, MaxHP: 10},
+		PlayerWon: false,
+		Round:     2,
+		Log:       []string{"Round 1", "Round 2"},
+	}
+	m.combatLogIndex = 2 // playback complete
+	return m
+}
+
+func TestDefeat_SetsScreenDeath(t *testing.T) {
+	m := makeDefeatedModel()
+	result, cmd := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if result.screenMode != ScreenDeath {
+		t.Fatalf("expected ScreenDeath after defeat, got %d", result.screenMode)
+	}
+	if cmd != nil {
+		t.Fatal("defeat should not return tea.Quit command")
+	}
+}
+
+func TestDefeat_RecordsKillerName(t *testing.T) {
+	m := makeDefeatedModel()
+	result, _ := handleKey(tea.KeyPressMsg{Code: tea.KeyEnter}, m)
+	if result.deathKiller != "Goblin" {
+		t.Fatalf("expected deathKiller='Goblin', got %q", result.deathKiller)
+	}
+}
+
+func TestDeathScreen_RRestarts(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenDeath
+	m.deathKiller = "Goblin"
+	m.playerHP = 0
+	result, cmd := handleKey(tea.KeyPressMsg{Code: 'r', Text: "r"}, m)
+	if result.screenMode != ScreenNormal {
+		t.Fatalf("expected ScreenNormal after restart, got %d", result.screenMode)
+	}
+	if result.playerHP != 20 {
+		t.Fatalf("expected playerHP=20 after restart, got %d", result.playerHP)
+	}
+	if cmd == nil {
+		t.Fatal("restart should return tickCmd to resume the tick loop")
+	}
+}
+
+func TestDeathScreen_QQuits(t *testing.T) {
+	m := NewModel()
+	m.screenMode = ScreenDeath
+	_, cmd := handleKey(tea.KeyPressMsg{Code: 'q', Text: "q"}, m)
+	if cmd == nil {
+		t.Fatal("q on death screen should return tea.Quit command")
 	}
 }

@@ -683,6 +683,7 @@ func renderHelpPanel(m Model) string {
 		lines = append(lines, maxW.Render("   d           drop"))
 		lines = append(lines, maxW.Render("   u           use"))
 		lines = append(lines, maxW.Render("   enter/>     enter dungeon"))
+		lines = append(lines, maxW.Render("   r           rest at campfire"))
 		lines = append(lines, maxW.Render("   esc/<       ascend to world"))
 	case ModeDungeon:
 		lines = append(lines, maxW.Render(" Dungeon"))
@@ -1113,18 +1114,8 @@ func renderEnemyPanel(m Model, width, height int) string {
 	cs := m.combatState
 	var lines []string
 
-	// Determine enemy character for portrait selection.
-	var enemyChar rune
-	if m.combatDungeonEnemy != nil {
-		enemyChar = m.combatDungeonEnemy.Template.Char
-	} else if cs.Enemy.Name != "" {
-		enemyChar = rune(cs.Enemy.Name[0])
-	} else {
-		enemyChar = '?'
-	}
-
 	// Render portrait centred vertically.
-	portrait := renderPortrait(enemyPortrait(enemyChar), width)
+	portrait := renderPortrait(enemyPortraitByName(cs.Enemy.Name), width)
 	portraitLines := strings.Split(portrait, "\n")
 	artH := len(portraitLines)
 	statsH := 5
@@ -1274,7 +1265,54 @@ func renderCombatScreen(m Model) string {
 // ── View composition ──────────────────────────────────────────────────────────
 
 // buildView composes the full terminal view: optional sidebar | map, HUD, key bar.
+// renderDeathScreen renders a fullscreen death screen with the killer's name and restart/quit prompts.
+func renderDeathScreen(m Model) string {
+	w, h := m.viewportW, m.viewportH
+	if w == 0 {
+		w = 80
+	}
+	if h == 0 {
+		h = 24
+	}
+
+	red := lipgloss.NewStyle().Foreground(lipgloss.Color("#cc2222")).Bold(true)
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+	normal := lipgloss.NewStyle().Foreground(lipgloss.Color("#dddddd"))
+
+	title := red.Render("YOU DIED")
+	killer := normal.Render(fmt.Sprintf("Killed by: %s", m.deathKiller))
+	prompt := dim.Render("Press r to restart  |  Press q to quit")
+
+	lines := []string{title, "", killer, "", prompt}
+
+	// Centre the block vertically.
+	topPad := (h - len(lines)) / 2
+	if topPad < 0 {
+		topPad = 0
+	}
+
+	var sb strings.Builder
+	for i := 0; i < topPad; i++ {
+		sb.WriteString(strings.Repeat(" ", w) + "\n")
+	}
+	for _, line := range lines {
+		// Strip ANSI for length calculation to centre properly.
+		visible := lipgloss.Width(line)
+		pad := (w - visible) / 2
+		if pad < 0 {
+			pad = 0
+		}
+		sb.WriteString(strings.Repeat(" ", pad) + line + "\n")
+	}
+	return sb.String()
+}
+
 func buildView(m Model) string {
+	// Fullscreen death screen takes over the entire viewport.
+	if m.screenMode == ScreenDeath {
+		return renderDeathScreen(m)
+	}
+
 	// Fullscreen combat takes over the entire viewport.
 	if m.screenMode == ScreenCombat {
 		return renderCombatScreen(m)

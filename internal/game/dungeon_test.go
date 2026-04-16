@@ -152,3 +152,19 @@ func TestGenerateDungeonLevel_UnlitTorchesPickupable(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateDungeonLevel_MinimumEnemyCount(t *testing.T) {
+	// depth=1, which is below the minimum of 3; expect at least 3 enemies (or all positions if fewer exist).
+	level := GenerateDungeonLevel(42, 0, 0, 1, 5, Plains)
+	if len(level.Enemies) < 3 {
+		t.Fatalf("expected at least 3 enemies on floor 1, got %d", len(level.Enemies))
+	}
+}
+
+func TestGenerateDungeonLevel_EnemyCountScalesWithDepth(t *testing.T) {
+	// depth=5, max(3,5)=5 enemies expected.
+	level := GenerateDungeonLevel(42, 0, 0, 5, 5, Plains)
+	if len(level.Enemies) < 5 {
+		t.Fatalf("expected at least 5 enemies on floor 5, got %d", len(level.Enemies))
+	}
+}

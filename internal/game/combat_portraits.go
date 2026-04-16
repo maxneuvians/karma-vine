@@ -378,6 +378,25 @@ func enemyPortrait(char rune) portrait {
 	}
 }
 
+// enemyPortraitByName returns the portrait for the given enemy name.
+// This is preferred over enemyPortrait(rune) because dungeon enemy chars are
+// lowercase and would otherwise all fall through to the fallback portrait.
+func enemyPortraitByName(name string) portrait {
+	switch name {
+	// Humanoid archetypes
+	case "Goblin", "Bandit", "Jungle Troll", "Frost Giant", "Stone Golem":
+		return humanoidPortrait
+	// Beast archetypes
+	case "Cave Crustacean", "Cave Rat":
+		return beastPortrait
+	// Undead archetypes
+	case "Sand Wraith", "Ice Wraith":
+		return undeadPortrait
+	default:
+		return fallbackPortrait
+	}
+}
+
 // ── Portrait rendering ───────────────────────────────────────────────────────
 
 // renderPortrait renders a portrait string, clipping each line to at most

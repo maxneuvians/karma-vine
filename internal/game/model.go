@@ -45,8 +45,10 @@ type Model struct {
 	combatPaused       bool
 
 	// Player stats
-	playerHP    int
-	playerMaxHP int
+	playerHP       int
+	playerMaxHP    int
+	restCooldown   int    // ticks until campfire rest is available again
+	deathKiller    string // name of the enemy that killed the player
 
 	// UI
 	viewportW       int
@@ -71,9 +73,9 @@ type Model struct {
 // defaultOutfit returns the starting equipment for a new character.
 func defaultOutfit() [NumBodySlots]Item {
 	var eq [NumBodySlots]Item
-	eq[SlotChest] = Item{Char: '♦', Color: "#a0a0a0", Name: "Cloth Tunic", Count: 1, Slots: []BodySlot{SlotChest}}
-	eq[SlotLegs] = Item{Char: '‖', Color: "#a0a0a0", Name: "Cloth Pants", Count: 1, Slots: []BodySlot{SlotLegs}}
-	eq[SlotFeet] = Item{Char: '∩', Color: "#8B4513", Name: "Leather Boots", Count: 1, Slots: []BodySlot{SlotFeet}}
+	eq[SlotChest] = Item{Char: '♦', Color: "#a0a0a0", Name: "Cloth Tunic", Count: 1, Slots: []BodySlot{SlotChest}, ArmourBonus: 1}
+	eq[SlotLegs] = Item{Char: '‖', Color: "#a0a0a0", Name: "Cloth Pants", Count: 1, Slots: []BodySlot{SlotLegs}, ArmourBonus: 1}
+	eq[SlotFeet] = Item{Char: '∩', Color: "#8B4513", Name: "Leather Boots", Count: 1, Slots: []BodySlot{SlotFeet}, ArmourBonus: 1}
 	eq[SlotRightHand] = Item{Char: '/', Color: "#c8a96e", Name: "Wooden Sword", Count: 1, Slots: []BodySlot{SlotRightHand}, DamageBonus: 1}
 	eq[SlotLeftHand] = Item{Char: 'O', Color: "#8B6914", Name: "Wooden Shield", Count: 1, Slots: []BodySlot{SlotLeftHand}, ArmourBonus: 1}
 	return eq
@@ -128,6 +130,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Base rate (1×) is 600 ticks = 5 minutes per cycle.
 		delta := float64(m.timeScale) / 600.0
 		m.timeOfDay = math.Mod(m.timeOfDay+delta, 1.0)
+		if m.restCooldown > 0 {
+			m.restCooldown--
+		}
 		if m.mode == ModeLocal && m.localMap != nil {
 			moveAnimals(&m)
 		}

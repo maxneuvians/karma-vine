@@ -1314,9 +1314,9 @@ func TestRenderHUD_ContainsArmour(t *testing.T) {
 	m.viewportW = 120
 	m.viewportH = 24
 	out := renderHUD(m)
-	// Default outfit includes Wooden Shield (+1 ArmourBonus), so ARM:1 is expected.
-	if !strings.Contains(out, "ARM:1") {
-		t.Errorf("HUD should contain 'ARM:1' (shield bonus), got: %s", out)
+	// Default outfit: Cloth Tunic (+1), Cloth Pants (+1), Leather Boots (+1), Wooden Shield (+1) = ARM:4.
+	if !strings.Contains(out, "ARM:4") {
+		t.Errorf("HUD should contain 'ARM:4' (tunic+pants+boots+shield bonuses), got: %s", out)
 	}
 }
 
@@ -1423,3 +1423,52 @@ func TestRenderCombatScreen_SmallViewport(t *testing.T) {
 	}
 }
 
+
+// ── Death screen render tests ─────────────────────────────────────────────────
+
+func TestRenderDeathScreen_ContainsYouDied(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenDeath
+	m.deathKiller = "Goblin"
+	out := renderDeathScreen(m)
+	if !strings.Contains(out, "YOU DIED") {
+		t.Errorf("death screen should contain 'YOU DIED', got: %s", out)
+	}
+}
+
+func TestRenderDeathScreen_ContainsKillerName(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenDeath
+	m.deathKiller = "Sand Wraith"
+	out := renderDeathScreen(m)
+	if !strings.Contains(out, "Sand Wraith") {
+		t.Errorf("death screen should contain killer name 'Sand Wraith', got: %s", out)
+	}
+}
+
+func TestRenderDeathScreen_ContainsRestartPrompt(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenDeath
+	out := renderDeathScreen(m)
+	if !strings.Contains(out, "r") || !strings.Contains(strings.ToLower(out), "restart") {
+		t.Errorf("death screen should contain restart instruction, got: %s", out)
+	}
+}
+
+func TestBuildView_ScreenDeathDelegates(t *testing.T) {
+	m := NewModel()
+	m.viewportW = 80
+	m.viewportH = 24
+	m.screenMode = ScreenDeath
+	m.deathKiller = "Goblin"
+	out := buildView(m)
+	if !strings.Contains(out, "YOU DIED") {
+		t.Errorf("buildView with ScreenDeath should contain 'YOU DIED'")
+	}
+}
